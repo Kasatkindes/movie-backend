@@ -47,17 +47,16 @@ module.exports = async (req, res) => {
   }
 
   let mood = null, epoch = null, rating = null, exclude = [];
-  if (req.method === 'POST' && req.body) {
-    try {
-      const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-      if (body && typeof body === 'object') {
-        mood = body.mood;
-        epoch = body.epoch;
-        rating = body.rating;
-        exclude = Array.isArray(body.exclude) ? body.exclude : [];
-      }
-    } catch (_) {}
-  }
+  const rawBody = req.body ?? {};
+  try {
+    const body = typeof rawBody === 'string' ? JSON.parse(rawBody) : (typeof rawBody === 'object' && rawBody !== null ? rawBody : {});
+    if (body && typeof body === 'object') {
+      mood = body.mood;
+      epoch = body.epoch;
+      rating = body.rating;
+      exclude = Array.isArray(body.exclude) ? body.exclude : [];
+    }
+  } catch (_) {}
 
   const userMessage = `Подбери один фильм. Настроение: ${mood || 'любое'}. Эпоха: ${epoch || 'любая'}. Рейтинг: ${rating || 'любой'}. Не предлагать: ${exclude.length ? exclude.slice(0, 20).join(', ') : '—'}. Ответь только JSON в указанном формате.`;
 
