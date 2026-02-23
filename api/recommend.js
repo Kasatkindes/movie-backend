@@ -4,9 +4,14 @@ const Groq = require('groq-sdk');
 
 const MODEL = 'llama-3.3-70b-versatile';
 
-const JSON_SCHEMA = `Ответь ТОЛЬКО одним JSON-объектом без markdown и текста до/после. ОБЯЗАТЕЛЬНО указывай original_title — оригинальное название фильма на английском (как в IMDb/TMDB). Формат строго:
+const SYSTEM_PROMPT = `Ты — сервис подбора фильмов. Критичные правила:
+1. ЗАПРЕЩЕНО выдумывать или изменять официальные названия фильмов. Используй ТОЛЬКО реальные названия из базы IMDb/TMDB.
+2. Перед формированием ответа проверь, что "title" и "original_title" соответствуют одному и тому же реальному фильму (русское и английское название одной картины).
+3. Описание (description) должно быть кратким и соответствовать РЕАЛЬНОМУ сюжету фильма, а не выдуманному.
+
+Ответь ТОЛЬКО одним JSON-объектом без markdown и текста до/после. ОБЯЗАТЕЛЬНО указывай original_title — оригинальное название на английском (как в IMDb/TMDB). Формат строго:
 {"title":"Название на русском","original_title":"Original Title in English","description":"Описание 2-4 предложения.","rating":"7.5","year":2010,"country":"США","genres":"Драма, Комедия","ageLimit":"16+"}
-Поля: title (строка), original_title (строка, ОБЯЗАТЕЛЬНО — английское название), description (строка), rating (строка), year (число), country (строка), genres (строка), ageLimit (строка: 0+, 6+, 12+, 16+, 18+).`;
+Поля: title (строка), original_title (строка, ОБЯЗАТЕЛЬНО), description (строка), rating (строка), year (число), country (строка), genres (строка), ageLimit (строка: 0+, 6+, 12+, 16+, 18+).`;
 
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -65,7 +70,7 @@ module.exports = async (req, res) => {
     const completion = await client.chat.completions.create({
       model: MODEL,
       messages: [
-        { role: 'system', content: JSON_SCHEMA },
+        { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userMessage }
       ],
       response_format: { type: 'json_object' },

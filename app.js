@@ -255,13 +255,38 @@ var TMDB_POSTER_BASE = 'https://image.tmdb.org/t/p/w500';
 var FALLBACK_BACKDROP_URL = 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=780&q=80';
 
 /**
- * Performs one TMDB search and returns best image URL (by popularity). Returns FALLBACK_BACKDROP_URL if none.
+ * Normalizes string for title comparison (lowercase, trim, collapse spaces).
+ * @param {string} s
+ * @returns {string}
+ */
+function normalizeTitle(s) {
+  if (s == null) return '';
+  return String(s).toLowerCase().trim().replace(/\s+/g, ' ');
+}
+
+/**
+ * Returns true if two titles are likely the same film (one contains the other or significant overlap).
+ * @param {string} a - e.g. recommendation title
+ * @param {string} b - e.g. TMDB matched title
+ * @returns {boolean}
+ */
+function titlesMatch(a, b) {
+  var na = normalizeTitle(a);
+  var nb = normalizeTitle(b);
+  if (!na || !nb) return true;
+  if (na.length < 2 || nb.length < 2) return true;
+  return na.indexOf(nb) !== -1 || nb.indexOf(na) !== -1;
+}
+
+/**
+ * Performs one TMDB search and returns best image URL and matched film title (by popularity).
  * @param {string} query - search query (e.g. original title or Russian title)
  * @param {string|number} year
- * @returns {Promise<string>}
+ * @returns {Promise<{ url: string, matchedTitle: string }>}
  */
 function fetchImageFromTmdbSearch(query, year) {
-  if (!query || !String(query).trim()) return Promise.resolve(FALLBACK_BACKDROP_URL);
+  var fallback = { url: FALLBACK_BACKDROP_URL, matchedTitle: '' };
+  if (!query || !String(query).trim()) return Promise.resolve(fallback);
   var q = encodeURIComponent(String(query).trim());
   var yearParam = year != null && year !== '' ? '&year=' + encodeURIComponent(String(year)) : '';
   var url = 'https://api.themoviedb.org/3/search/movie?api_key=' + TMDB_API_KEY + '&query=' + q + yearParam;
@@ -270,7 +295,7 @@ function fetchImageFromTmdbSearch(query, year) {
     .then(function (data) {
       try {
         var results = data && data.results;
-        if (!Array.isArray(results) || results.length === 0) return FALLBACK_BACKDROP_URL;
+        if (!Array.isArray(results) || results.length === 0) return fallback;
         var sorted = results.slice().sort(function (a, b) {
           var pa = typeof a.popularity === 'number' ? a.popularity : 0;
           var pb = typeof b.popularity === 'number' ? b.popularity : 0;
@@ -278,33 +303,36 @@ function fetchImageFromTmdbSearch(query, year) {
         });
         for (var i = 0; i < sorted.length; i++) {
           var item = sorted[i];
-          if (item.backdrop_path) return TMDB_BACKDROP_BASE + item.backdrop_path;
-          if (item.poster_path) return TMDB_POSTER_BASE + item.poster_path;
+          var imageUrl = null;
+          if (item.backdrop_path) imageUrl = TMDB_BACKDROP_BASE + item.backdrop_path;
+          else if (item.poster_path) imageUrl = TMDB_POSTER_BASE + item.poster_path;
+          if (imageUrl) return { url: imageUrl, matchedTitle: item.title || '' };
         }
-        return FALLBACK_BACKDROP_URL;
+        return fallback;
       } catch (e) {
-        return FALLBACK_BACKDROP_URL;
+        return fallback;
       }
     })
     .catch(function () {
-      return FALLBACK_BACKDROP_URL;
+      return fallback;
     });
 }
 
 /**
- * Fetches movie backdrop (or poster fallback) URL from TMDB. Tries original_title + year first, then title + year.
- * Always returns an image URL (https://image.tmdb.org/t/p/... or fallback).
+ * Fetches movie backdrop (or poster fallback) from TMDB. Tries original_title + year first, then title + year.
+ * Returns { url, matchedTitle }. If TMDB matched title differs strongly from recommendation, caller should use placeholder.
  * @param {string} originalTitle - English/original title (for TMDB)
  * @param {string} title - Russian or display title (fallback search)
  * @param {string|number} year
- * @returns {Promise<string>}
+ * @returns {Promise<{ url: string, matchedTitle: string }>}
  */
 function fetchMovieBackdrop(originalTitle, title, year) {
   var hasOriginal = originalTitle != null && String(originalTitle).trim() !== '';
   var hasTitle = title != null && String(title).trim() !== '';
-  if (!hasOriginal && !hasTitle) return Promise.resolve(FALLBACK_BACKDROP_URL);
-  return fetchImageFromTmdbSearch(hasOriginal ? String(originalTitle).trim() : '', year).then(function (url) {
-    if (url !== FALLBACK_BACKDROP_URL) return url;
+  var fallback = { url: FALLBACK_BACKDROP_URL, matchedTitle: '' };
+  if (!hasOriginal && !hasTitle) return Promise.resolve(fallback);
+  return fetchImageFromTmdbSearch(hasOriginal ? String(originalTitle).trim() : '', year).then(function (result) {
+    if (result.url !== FALLBACK_BACKDROP_URL) return result;
     return fetchImageFromTmdbSearch(hasTitle ? String(title).trim() : '', year);
   });
 }
@@ -647,9 +675,14 @@ function getRecommendationFromApi(options) {
           var skeleton = document.createElement('div');
           skeleton.className = 'poster-skeleton';
           backdropEl.appendChild(skeleton);
-          (function (el, originalTitle, title, recYear) {
-            fetchMovieBackdrop(originalTitle, title, recYear).then(function (backdropUrl) {
+          (function (el, originalTitle, title, recYear, recommendation) {
+            fetchMovieBackdrop(originalTitle, title, recYear).then(function (result) {
               if (!el.parentNode) return;
+              var urlToUse = result.url;
+              if (result.matchedTitle && !titlesMatch(recommendation.title, result.matchedTitle) && !titlesMatch(recommendation.original_title, result.matchedTitle)) {
+                console.error('TMDB title mismatch: got "' + result.matchedTitle + '" for recommendation "' + (recommendation.title || '') + '" / "' + (recommendation.original_title || '') + '". Showing placeholder.');
+                urlToUse = FALLBACK_BACKDROP_URL;
+              }
               var img = new Image();
               img.alt = title || '';
               img.className = 'result-backdrop__img';
@@ -662,12 +695,12 @@ function getRecommendationFromApi(options) {
               img.onerror = function () {
                 if (!el.parentNode) return;
                 el.innerHTML = '';
-                var fallback = document.createElement('div');
-                fallback.className = 'result-backdrop__placeholder';
-                fallback.textContent = title || '🎬';
-                el.appendChild(fallback);
+                var fallbackEl = document.createElement('div');
+                fallbackEl.className = 'result-backdrop__placeholder';
+                fallbackEl.textContent = title || '🎬';
+                el.appendChild(fallbackEl);
               };
-              img.src = backdropUrl;
+              img.src = urlToUse;
             }).catch(function () {
               if (!el.parentNode) return;
               el.innerHTML = '';
@@ -676,7 +709,7 @@ function getRecommendationFromApi(options) {
               fb.textContent = title || '🎬';
               el.appendChild(fb);
             });
-          })(backdropEl, backdropOriginalTitle, backdropTitle, rec.year);
+          })(backdropEl, backdropOriginalTitle, backdropTitle, rec.year, rec);
         }
         if (rec.title != null && String(rec.title).trim()) {
           state.viewedMovies.push(String(rec.title).trim());
