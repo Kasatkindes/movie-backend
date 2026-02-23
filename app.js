@@ -255,25 +255,32 @@ var TMDB_POSTER_BASE = 'https://image.tmdb.org/t/p/w500';
 var FALLBACK_BACKDROP_URL = 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=780&q=80';
 
 /**
- * Fetches movie backdrop (or poster fallback) URL from TMDB. Always returns an image URL.
- * @param {string} title
+ * Performs one TMDB search and returns best image URL (by popularity). Returns FALLBACK_BACKDROP_URL if none.
+ * @param {string} query - search query (e.g. original title or Russian title)
  * @param {string|number} year
  * @returns {Promise<string>}
  */
-function fetchMovieBackdrop(title, year) {
-  if (!title || !String(title).trim()) return Promise.resolve(FALLBACK_BACKDROP_URL);
-  var query = encodeURIComponent(String(title).trim());
+function fetchImageFromTmdbSearch(query, year) {
+  if (!query || !String(query).trim()) return Promise.resolve(FALLBACK_BACKDROP_URL);
+  var q = encodeURIComponent(String(query).trim());
   var yearParam = year != null && year !== '' ? '&year=' + encodeURIComponent(String(year)) : '';
-  var url = 'https://api.themoviedb.org/3/search/movie?api_key=' + TMDB_API_KEY + '&query=' + query + yearParam;
+  var url = 'https://api.themoviedb.org/3/search/movie?api_key=' + TMDB_API_KEY + '&query=' + q + yearParam;
   return fetch(url)
     .then(function (res) { return res.ok ? res.json() : null; })
     .then(function (data) {
       try {
         var results = data && data.results;
         if (!Array.isArray(results) || results.length === 0) return FALLBACK_BACKDROP_URL;
-        var first = results[0];
-        if (first.backdrop_path) return TMDB_BACKDROP_BASE + first.backdrop_path;
-        if (first.poster_path) return TMDB_POSTER_BASE + first.poster_path;
+        var sorted = results.slice().sort(function (a, b) {
+          var pa = typeof a.popularity === 'number' ? a.popularity : 0;
+          var pb = typeof b.popularity === 'number' ? b.popularity : 0;
+          return pb - pa;
+        });
+        for (var i = 0; i < sorted.length; i++) {
+          var item = sorted[i];
+          if (item.backdrop_path) return TMDB_BACKDROP_BASE + item.backdrop_path;
+          if (item.poster_path) return TMDB_POSTER_BASE + item.poster_path;
+        }
         return FALLBACK_BACKDROP_URL;
       } catch (e) {
         return FALLBACK_BACKDROP_URL;
@@ -282,6 +289,24 @@ function fetchMovieBackdrop(title, year) {
     .catch(function () {
       return FALLBACK_BACKDROP_URL;
     });
+}
+
+/**
+ * Fetches movie backdrop (or poster fallback) URL from TMDB. Tries original_title + year first, then title + year.
+ * Always returns an image URL (https://image.tmdb.org/t/p/... or fallback).
+ * @param {string} originalTitle - English/original title (for TMDB)
+ * @param {string} title - Russian or display title (fallback search)
+ * @param {string|number} year
+ * @returns {Promise<string>}
+ */
+function fetchMovieBackdrop(originalTitle, title, year) {
+  var hasOriginal = originalTitle != null && String(originalTitle).trim() !== '';
+  var hasTitle = title != null && String(title).trim() !== '';
+  if (!hasOriginal && !hasTitle) return Promise.resolve(FALLBACK_BACKDROP_URL);
+  return fetchImageFromTmdbSearch(hasOriginal ? String(originalTitle).trim() : '', year).then(function (url) {
+    if (url !== FALLBACK_BACKDROP_URL) return url;
+    return fetchImageFromTmdbSearch(hasTitle ? String(title).trim() : '', year);
+  });
 }
 
 /** Calls external backend. Returns { movie, reason } or null on failure. */
@@ -617,14 +642,15 @@ function getRecommendationFromApi(options) {
         if (metaEl) metaEl.textContent = recMetaRest;
         if (backdropEl) {
           var backdropTitle = (rec.title != null && String(rec.title).trim()) ? String(rec.title).trim() : '';
+          var backdropOriginalTitle = (rec.original_title != null && String(rec.original_title).trim()) ? String(rec.original_title).trim() : '';
           var backdropPlaceholder = document.createElement('div');
           backdropPlaceholder.className = 'result-backdrop__placeholder';
           backdropPlaceholder.textContent = backdropTitle || '🎬';
           backdropEl.innerHTML = '';
           backdropEl.classList.add('result-backdrop--loading');
           backdropEl.appendChild(backdropPlaceholder);
-          (function (el, title, recYear) {
-            fetchMovieBackdrop(title, recYear).then(function (backdropUrl) {
+          (function (el, originalTitle, title, recYear) {
+            fetchMovieBackdrop(originalTitle, title, recYear).then(function (backdropUrl) {
               console.log('Found backdrop:', backdropUrl);
               el.classList.remove('result-backdrop--loading');
               if (backdropUrl && el.parentNode) {
@@ -653,7 +679,7 @@ function getRecommendationFromApi(options) {
                 el.appendChild(fb);
               }
             });
-          })(backdropEl, backdropTitle, rec.year);
+          })(backdropEl, backdropOriginalTitle, backdropTitle, rec.year);
         }
         if (rec.title != null && String(rec.title).trim()) {
           state.viewedMovies.push(String(rec.title).trim());

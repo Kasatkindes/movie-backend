@@ -4,9 +4,9 @@ const Groq = require('groq-sdk');
 
 const MODEL = 'llama-3.3-70b-versatile';
 
-const JSON_SCHEMA = `Ответь ТОЛЬКО одним JSON-объектом без markdown и текста до/после. Формат строго:
-{"title":"Название на русском","description":"Описание 2-4 предложения.","rating":"7.5","year":2010,"country":"США","genres":"Драма, Комедия","ageLimit":"16+"}
-Поля: title, description (строка), rating (строка, например 7.5), year (число), country (строка), genres (строка), ageLimit (строка: 0+, 6+, 12+, 16+, 18+).`;
+const JSON_SCHEMA = `Ответь ТОЛЬКО одним JSON-объектом без markdown и текста до/после. ОБЯЗАТЕЛЬНО указывай original_title — оригинальное название фильма на английском (как в IMDb/TMDB). Формат строго:
+{"title":"Название на русском","original_title":"Original Title in English","description":"Описание 2-4 предложения.","rating":"7.5","year":2010,"country":"США","genres":"Драма, Комедия","ageLimit":"16+"}
+Поля: title (строка), original_title (строка, ОБЯЗАТЕЛЬНО — английское название), description (строка), rating (строка), year (число), country (строка), genres (строка), ageLimit (строка: 0+, 6+, 12+, 16+, 18+).`;
 
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -17,6 +17,7 @@ function setCors(res) {
 function toRecommendation(parsed) {
   return {
     title: parsed && parsed.title != null ? String(parsed.title) : '',
+    original_title: parsed && (parsed.original_title != null || parsed.originalTitle != null) ? String(parsed.original_title || parsed.originalTitle) : '',
     description: parsed && parsed.description != null ? String(parsed.description) : '',
     rating: parsed && parsed.rating != null ? String(parsed.rating) : '',
     year: (function () {
