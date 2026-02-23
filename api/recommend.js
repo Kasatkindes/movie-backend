@@ -1,9 +1,8 @@
 'use strict';
 
-// Groq SDK: default export in ESM becomes .default in CommonJS
-const Groq = require('groq-sdk').default || require('groq-sdk');
+const Groq = require('groq-sdk');
 
-const MODEL = 'llama3-8b-8192';
+const MODEL = 'llama-3.3-70b-versatile';
 
 const JSON_SCHEMA = `Ответь ТОЛЬКО одним JSON-объектом без markdown и текста до/после. Формат строго:
 {"title":"Название на русском","description":"Описание 2-4 предложения.","rating":"7.5","year":2010,"country":"США","genres":"Драма, Комедия","ageLimit":"16+"}
