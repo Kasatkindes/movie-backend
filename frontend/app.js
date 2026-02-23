@@ -246,7 +246,7 @@ function pickMovie(options) {
   return { movie: movie, reason: 'Подобрано по вашему настроению' };
 }
 
-var API_RECOMMEND_URL = 'https://movie-backend-pearl.vercel.app/api/recommend';
+var API_RECOMMEND_URL = '/api/recommend';
 
 var TMDB_API_KEY = '7d7983a4442f13b2d23ad89cfea14294';
 var TMDB_BACKDROP_BASE = 'https://image.tmdb.org/t/p/w780';
