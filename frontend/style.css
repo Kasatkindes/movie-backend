@@ -1,0 +1,797 @@
+/* ========================================
+   MOOD MOVIE APP — Mobile 320–430px
+   ======================================== */
+
+:root {
+  /* Background */
+  --bg: #161B22;
+
+  /* Chip default */
+  --chip-bg: transparent;
+  --chip-border: 1px solid rgba(255, 255, 255, 0.2);
+  --chip-text: #FFFFFF;
+
+  /* Chip active */
+  --chip-active-bg: linear-gradient(135deg, #F5C46B 0%, #E57BC7 100%);
+  --chip-active-text: #0F1115;
+
+  /* Primary button */
+  --btn-primary-bg: linear-gradient(135deg, #7B61FF 0%, #9B7BFF 100%);
+
+  /* Bottom panel */
+  --bottom-panel-bg: #3d2e5c;
+  --text-muted: #999;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: 'Roboto', sans-serif;
+  background: var(--bg);
+  color: var(--chip-text);
+  overflow-x: hidden;
+}
+
+body {
+  width: 100%;
+  max-width: 430px;
+  min-width: 375px;
+  margin: 0 auto;
+}
+
+#app {
+  min-height: 100vh;
+  height: 100%;
+}
+
+/* ========== Welcome overlay ========== */
+.welcome-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: center;
+  background: var(--bg);
+  padding: 0 20px;
+  overflow-y: auto;
+  font-family: 'Roboto', sans-serif;
+  transition: opacity 0.4s ease-out;
+}
+
+.welcome-overlay.welcome-overlay--fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.welcome-overlay__inner {
+  width: 100%;
+  max-width: 430px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 48px 0 24px;
+}
+
+.welcome-overlay__title {
+  font-family: 'Roboto', sans-serif;
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #FFFFFF;
+  margin: 0 0 24px;
+  padding: 0;
+}
+
+.welcome-overlay__body {
+  flex: 1;
+  font-family: 'Roboto', sans-serif;
+  font-size: 18px;
+  line-height: 28px;
+  color: #FFFFFF;
+  margin: 0;
+}
+
+.welcome-overlay__body p {
+  margin: 0 0 20px;
+}
+
+.welcome-overlay__body p:last-of-type {
+  margin-bottom: 0;
+}
+
+.welcome-overlay__link {
+  display: inline-block;
+  color: inherit;
+  text-decoration: none;
+  background: linear-gradient(135deg, #E0E0E0 0%, #9E9E9E 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 500;
+}
+
+.welcome-overlay__link:hover,
+.welcome-overlay__link:focus {
+  opacity: 0.9;
+}
+
+/* Welcome CTA uses .btn-primary (same as "Хочу другой") — violet gradient, 24px radius, 16px 24px padding */
+.welcome-overlay__btn {
+  margin: 32px 0 0;
+  flex-shrink: 0;
+  font-family: 'Roboto', sans-serif;
+}
+
+/* ========== Screens (single screen at a time) ========== */
+.screen {
+  min-height: 100vh;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+/* ========== Mood screen: NO vertical scroll ========== */
+.screen-mood {
+  overflow: hidden;
+}
+
+.screen-mood .screen-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 40px 16px 24px;
+  padding-bottom: 320px;
+}
+
+/* ========== Filters screen: NO vertical scroll ========== */
+.screen-filters {
+  overflow: hidden;
+}
+
+.screen-filters .screen-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 40px 16px 24px;
+  padding-bottom: 320px;
+}
+
+/* ========== Bottom panel: FIXED to viewport bottom (Mood + Filters) ========== */
+.screen-mood .bottom-panel,
+.screen-filters .bottom-panel {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
+  padding: 16px;
+  background: linear-gradient(
+    180deg,
+    rgba(22, 27, 34, 0) 0%,
+    var(--bg) 30%
+  );
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+/* ========== Loading screen ========== */
+.screen-loading {
+  position: relative;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: var(--bg);
+  transition: opacity 0.4s ease-out;
+}
+
+.screen-loading.screen-loading--fade-out {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.screen-loading .loading-bg {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  z-index: 0;
+}
+
+.screen-loading .loading-blobs {
+  position: absolute;
+  inset: -80%;
+  width: 260%;
+  height: 260%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.screen-loading .loading-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(100px);
+  opacity: 0.45;
+  will-change: transform;
+}
+
+.screen-loading .loading-blob--1 {
+  width: 320px;
+  height: 320px;
+  background: #EBA097;
+  top: 15%;
+  left: 10%;
+  animation: loading-blob-1 22s ease-in-out infinite;
+}
+
+.screen-loading .loading-blob--2 {
+  width: 280px;
+  height: 280px;
+  background: #DAA22D;
+  top: 55%;
+  left: 55%;
+  animation: loading-blob-2 26s ease-in-out infinite;
+}
+
+.screen-loading .loading-blob--3 {
+  width: 260px;
+  height: 260px;
+  background: #EBC874;
+  top: 30%;
+  left: 60%;
+  animation: loading-blob-3 24s ease-in-out infinite;
+}
+
+@keyframes loading-blob-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(8%, -5%) scale(1.08); }
+  50% { transform: translate(-4%, 6%) scale(0.96); }
+  75% { transform: translate(5%, 4%) scale(1.05); }
+}
+
+@keyframes loading-blob-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(-6%, 8%) scale(1.1); }
+  66% { transform: translate(4%, -4%) scale(0.92); }
+}
+
+@keyframes loading-blob-3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-5%, -6%) scale(1.06); }
+}
+
+.screen-loading .loading-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+}
+
+.screen-loading .loading-headline {
+  font-size: 24px;
+  font-weight: 700;
+  color: #FFFFFF;
+  margin: 0;
+  padding: 0;
+  animation: loading-pulse 2s ease-in-out infinite;
+}
+
+@keyframes loading-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
+}
+
+.screen-loading .loading-sub {
+  font-size: 16px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+  padding: 0;
+  min-height: 1.5em;
+  transition: opacity 0.35s ease-in-out;
+}
+
+.screen-loading .loading-sub.loading-sub--fade {
+  opacity: 0;
+}
+
+/* ========== Typography ========== */
+.title {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.2;
+  margin: 0 0 24px;
+}
+
+.section-label {
+  font-size: 16px;
+  font-weight: 500;
+  margin: 0 0 12px;
+  color: var(--chip-text);
+}
+
+/* ========== Mood chips: two rows, horizontal scroll ========== */
+.chips-mood-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -16px 20px;
+  padding: 0 16px;
+  scrollbar-width: none;
+}
+
+.chips-mood-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.chips.chips-mood {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(2, 48px);
+  gap: 8px;
+  width: max-content;
+  margin: 0;
+}
+
+.chips.chips-mood .chip {
+  width: max-content;
+  justify-self: start;
+  margin: 0;
+}
+
+/* ========== Era chips: single row, horizontal scroll (Filters screen) ========== */
+.chips-epoch-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -16px 20px;
+  padding: 0 16px;
+  scrollbar-width: none;
+}
+
+.chips-epoch-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.chips.chips-epoch-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  width: max-content;
+  margin: 0;
+}
+
+.chips.chips-epoch-row .chip {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+/* ========== Chips (reusable component) ========== */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  margin-bottom: 20px;
+}
+
+.chips-epoch,
+.chips-rating {
+  margin-bottom: 24px;
+}
+
+.chips-epoch:last-of-type,
+.chips-rating:last-of-type {
+  margin-bottom: 20px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  height: 48px;
+  padding: 12px 20px;
+  border-radius: 24px;
+  border: var(--chip-border);
+  background: var(--chip-bg);
+  color: var(--chip-text);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.chip:hover:not(:disabled):not(.chip--disabled) {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.chip.chip--active {
+  background: var(--chip-active-bg);
+  border: none;
+  color: var(--chip-active-text);
+  box-shadow: 0 0 12px rgba(245, 196, 107, 0.25);
+}
+
+.chip.chip--disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.chip__icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.chip.chip--active .chip__icon {
+  filter: brightness(0.9);
+}
+
+.chip__label {
+  white-space: nowrap;
+}
+
+/* Filter chips (epoch, rating) - same base, no icon */
+.chip--filter .chip__label {
+  display: block;
+}
+
+/* ========== Secondary button: Add params ========== */
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: default;
+  transition: color 0.2s;
+}
+
+.btn-secondary:not(:disabled) {
+  color: var(--chip-text);
+  cursor: pointer;
+}
+
+.btn-secondary:not(:disabled):hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.5;
+}
+
+.btn-secondary__icon--plus {
+  flex-shrink: 0;
+}
+
+/* ========== Back button ========== */
+.btn-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border: none;
+  background: transparent;
+  color: var(--chip-text);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.btn-back:hover {
+  opacity: 0.8;
+}
+
+.bottom-panel__inner {
+  background: var(--bottom-panel-bg);
+  border-radius: 24px 24px 0 0;
+  padding: 28px 16px 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+
+.character-wrapper {
+  width: 160px;
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.screen-mood .character-wrapper {
+  border-radius: 20px;
+}
+
+.screen-mood .bottom-panel__inner,
+.screen-filters .bottom-panel__inner {
+  border-radius: 24px;
+}
+
+/* Character card CTA: same on mood and filters (always #161B22) */
+.screen-mood .bottom-panel__inner .btn-primary,
+.screen-filters .bottom-panel__inner .btn-primary {
+  background: #161B22;
+  color: #FFFFFF;
+}
+
+.screen-mood .bottom-panel__inner .btn-primary:hover:not(:disabled),
+.screen-filters .bottom-panel__inner .btn-primary:hover:not(:disabled) {
+  opacity: 0.95;
+}
+
+.screen-mood .bottom-panel__inner .btn-primary:active:not(:disabled),
+.screen-filters .bottom-panel__inner .btn-primary:active:not(:disabled) {
+  opacity: 0.9;
+}
+
+.character {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* ========== Primary button ========== */
+.btn-primary {
+  width: 100%;
+  padding: 16px 24px;
+  border: none;
+  border-radius: 24px;
+  background: var(--btn-primary-bg);
+  color: var(--chip-text);
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: background 0.2s, opacity 0.2s;
+}
+
+.btn-primary:hover:not(:disabled) {
+  opacity: 0.95;
+}
+
+.btn-primary:active:not(:disabled) {
+  opacity: 0.9;
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary__icon {
+  font-size: 14px;
+}
+
+/* ========== Movie screen (separate page) ========== */
+.screen-movie {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.screen-movie .result-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px 0 16px;
+  margin: 0;
+  background: var(--bg);
+}
+
+.screen-movie .btn-back-inline {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: rgba(255, 255, 255, 0.10);
+  color: #FFFFFF;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.screen-movie .btn-back-inline:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.screen-movie .btn-back-inline img {
+  width: 20px;
+  height: 20px;
+  display: block;
+}
+
+.screen-movie .result-header-title {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 700;
+  color: #FFFFFF;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+  line-height: 1.2;
+}
+
+.screen-movie .result-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+  margin: 0 0 20px;
+  padding: 0;
+}
+
+.screen-movie .result-meta-row .imdb-badge {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, #EBA097 0%, #EBC874 51%, #DAA22D 100%);
+  color: #000000;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.4;
+  display: inline-flex;
+  align-items: center;
+  box-shadow: none;
+}
+
+.screen-movie .result-meta-row .result-meta {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0;
+  padding: 0;
+  line-height: 1.5;
+}
+
+.screen-movie .result-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 16px 140px;
+  margin-top: 0;
+}
+
+.screen-movie .result-backdrop {
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 20px;
+  overflow: hidden;
+  margin: 0 0 20px;
+  background: linear-gradient(135deg, #5a4a7a 0%, #3d2e5c 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 14px;
+}
+
+.screen-movie .result-backdrop--loading {
+  animation: result-backdrop-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes result-backdrop-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.screen-movie .result-backdrop__placeholder {
+  padding: 16px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.screen-movie .result-backdrop img,
+.screen-movie .result-backdrop .result-backdrop__img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  object-fit: cover;
+  object-position: center;
+  opacity: 0;
+  transition: opacity 0.35s ease-in;
+}
+
+.screen-movie .result-backdrop img.loaded,
+.screen-movie .result-backdrop .result-backdrop__img.loaded {
+  opacity: 1;
+}
+
+.screen-movie .result-desc-card {
+  background: #242A34;
+  padding: 16px;
+  border-radius: 16px;
+  margin: 0;
+  height: auto;
+}
+
+.screen-movie .result-card-title {
+  font-size: 22px;
+  font-weight: 600;
+  color: #FFFFFF;
+  margin: 0 0 12px;
+  padding: 0;
+  line-height: 1.3;
+}
+
+.screen-movie .result-description {
+  font-size: 15px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.6);
+  margin: 0;
+  padding: 0 0 16px 0;
+}
+
+.screen-movie .result-footer {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 430px;
+  padding: 20px 16px 28px;
+  background: var(--bg);
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.screen-movie .result-footer .btn-primary {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.screen-movie .result-footer .btn-primary__icon {
+  width: 24px;
+  height: 24px;
+  display: block;
+  flex-shrink: 0;
+}

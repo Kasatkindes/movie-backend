@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Подбор фильма по настроению</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="welcome-overlay" class="welcome-overlay" role="dialog" aria-label="Приветствие">
+    <div class="welcome-overlay__inner">
+      <h1 class="welcome-overlay__title">ЙО дружище</h1>
+      <div class="welcome-overlay__body">
+        <p>Мне стало не в прикол тратить на выбор фильма больше времени, чем на сам просмотр. Поэтому собрал эту штуку.</p>
+        <p>Попользуйся, плиз, недельку. Дай фидбек, даже если я его не просил — твоё мнение поможет сделать сервис круче.</p>
+        <p>Связь в тг: <a href="https://t.me/Kasatkin_Oleg" class="welcome-overlay__link" target="_blank" rel="noopener noreferrer">@Kasatkin_Oleg</a></p>
+      </div>
+      <button type="button" id="welcome-overlay-btn" class="welcome-overlay__btn btn-primary">Окей, летс гоу</button>
+    </div>
+  </div>
+  <div id="app"></div>
+  <script src="app.js"></script>
+</body>
+</html>
