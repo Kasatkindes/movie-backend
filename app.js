@@ -469,7 +469,7 @@ function getRecommendationFromApi(options) {
               '<img id="character-img" class="character" src="' + characterSrc + '" alt="">' +
             '</div>' +
             '<button type="button" id="btn-find-movie" class="btn-primary">' +
-              '<img class="btn-primary__icon btn-icon" src="assets/icons/play.svg" alt=""> Подобрать фильм' +
+              '<img class="btn-icon" src="assets/icons/play.svg" alt="play"> Подобрать фильм' +
             '</button>' +
           '</div>' +
         '</div>' +
@@ -532,7 +532,7 @@ function getRecommendationFromApi(options) {
               '<img id="character-img" class="character" src="' + characterSrc + '" alt="">' +
             '</div>' +
             '<button type="button" id="btn-find-movie" class="btn-primary">' +
-              '<img class="btn-primary__icon btn-icon" src="assets/icons/play.svg" alt=""> Подобрать фильм' +
+              '<img class="btn-icon" src="assets/icons/play.svg" alt="play"> Подобрать фильм' +
             '</button>' +
           '</div>' +
         '</div>' +

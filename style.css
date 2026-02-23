@@ -600,6 +600,7 @@ body {
   margin-right: 10px;
   display: block;
   flex-shrink: 0;
+  filter: brightness(0) invert(1);
 }
 
 /* ========== Movie screen (separate page) ========== */
