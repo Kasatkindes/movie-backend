@@ -469,7 +469,7 @@ function getRecommendationFromApi(options) {
               '<img id="character-img" class="character" src="' + characterSrc + '" alt="">' +
             '</div>' +
             '<button type="button" id="btn-find-movie" class="btn-primary">' +
-              '<span class="btn-primary__icon">▶</span> Подобрать фильм' +
+              '<img class="btn-primary__icon btn-icon" src="assets/icons/play.svg" alt=""> Подобрать фильм' +
             '</button>' +
           '</div>' +
         '</div>' +
@@ -532,7 +532,7 @@ function getRecommendationFromApi(options) {
               '<img id="character-img" class="character" src="' + characterSrc + '" alt="">' +
             '</div>' +
             '<button type="button" id="btn-find-movie" class="btn-primary">' +
-              '<span class="btn-primary__icon">▶</span> Подобрать фильм' +
+              '<img class="btn-primary__icon btn-icon" src="assets/icons/play.svg" alt=""> Подобрать фильм' +
             '</button>' +
           '</div>' +
         '</div>' +
@@ -643,41 +643,38 @@ function getRecommendationFromApi(options) {
         if (backdropEl) {
           var backdropTitle = (rec.title != null && String(rec.title).trim()) ? String(rec.title).trim() : '';
           var backdropOriginalTitle = (rec.original_title != null && String(rec.original_title).trim()) ? String(rec.original_title).trim() : '';
-          var backdropPlaceholder = document.createElement('div');
-          backdropPlaceholder.className = 'result-backdrop__placeholder';
-          backdropPlaceholder.textContent = backdropTitle || '🎬';
           backdropEl.innerHTML = '';
-          backdropEl.classList.add('result-backdrop--loading');
-          backdropEl.appendChild(backdropPlaceholder);
+          var skeleton = document.createElement('div');
+          skeleton.className = 'poster-skeleton';
+          backdropEl.appendChild(skeleton);
           (function (el, originalTitle, title, recYear) {
             fetchMovieBackdrop(originalTitle, title, recYear).then(function (backdropUrl) {
-              console.log('Found backdrop:', backdropUrl);
-              el.classList.remove('result-backdrop--loading');
-              if (backdropUrl && el.parentNode) {
+              if (!el.parentNode) return;
+              var img = new Image();
+              img.alt = title || '';
+              img.className = 'result-backdrop__img';
+              img.onload = function () {
+                if (!el.parentNode) return;
                 el.innerHTML = '';
-                var img = document.createElement('img');
-                img.src = backdropUrl;
-                img.alt = title || '';
-                img.className = 'result-backdrop__img';
-                img.onload = function () { img.classList.add('loaded'); };
                 el.appendChild(img);
-                if (img.complete) img.classList.add('loaded');
-              } else if (el.parentNode) {
+                img.classList.add('loaded');
+              };
+              img.onerror = function () {
+                if (!el.parentNode) return;
                 el.innerHTML = '';
                 var fallback = document.createElement('div');
                 fallback.className = 'result-backdrop__placeholder';
                 fallback.textContent = title || '🎬';
                 el.appendChild(fallback);
-              }
+              };
+              img.src = backdropUrl;
             }).catch(function () {
-              el.classList.remove('result-backdrop--loading');
-              if (el.parentNode && !el.querySelector('img')) {
-                el.innerHTML = '';
-                var fb = document.createElement('div');
-                fb.className = 'result-backdrop__placeholder';
-                fb.textContent = title || '🎬';
-                el.appendChild(fb);
-              }
+              if (!el.parentNode) return;
+              el.innerHTML = '';
+              var fb = document.createElement('div');
+              fb.className = 'result-backdrop__placeholder';
+              fb.textContent = title || '🎬';
+              el.appendChild(fb);
             });
           })(backdropEl, backdropOriginalTitle, backdropTitle, rec.year);
         }
