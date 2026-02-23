@@ -1,37 +1,36 @@
 # Подбор фильма по настроению
 
-Монорепозиторий: фронтенд и бэкенд в одном репозитории.
+Фронтенд (HTML, CSS, JS, ассеты) в корне проекта. API для рекомендаций — Vercel Serverless (Groq).
 
 ## Структура
 
-- **`/frontend`** — веб-приложение (HTML, CSS, JS, ассеты). Откройте `frontend/index.html` или раздайте папку `frontend` через веб-сервер.
-- **`/backend`** — серверная часть (API и т.д.).
+- **Корень** — `index.html`, `style.css`, `app.js`, папка `assets/` (иконки, персонажи).
+- **`/api`** — серверные функции Vercel; `api/recommend.js` — рекомендация фильма через Groq (модель llama3-8b-8192).
+- **`/backend`** — зарезервировано под дополнительный бэкенд при необходимости.
 
-## Локальный запуск фронтенда
-
-Из корня проекта:
+## Локальный запуск
 
 ```bash
-# Вариант 1: простой HTTP-сервер (нужен Python)
-cd frontend && python3 -m http.server 8080
-
-# Вариант 2: npx serve
-npx serve frontend -p 8080
+# Статика из корня
+npx serve . -p 8080
+# или
+python3 -m http.server 8080
 ```
 
-После этого откройте в браузере: http://localhost:8080
+Откройте http://localhost:8080. Для работы кнопки «Подобрать фильм» нужен деплой на Vercel (или прокси к API с `GROQ_API_KEY`).
+
+## Деплой на Vercel
+
+1. Подключите репозиторий к Vercel.
+2. В настройках проекта добавьте переменную окружения **`GROQ_API_KEY`** (ключ из [console.groq.com](https://console.groq.com)).
+3. Деплой: статика раздаётся из корня, запросы к `/api/recommend` обрабатывает `api/recommend.js`.
 
 ## Публикация в GitHub
 
-Если репозиторий ещё не инициализирован и нужно связать папку с существующим репозиторием:
-
 ```bash
-git init
 git add .
-git commit -m "Restructure: frontend and backend folders"
-git branch -M main
-git remote add origin https://github.com/ВАШ_ЛОГИН/ИМЯ_РЕПОЗИТОРИЯ.git
-git push -u origin main
+git commit -m "Flat structure, Groq API"
+git push
 ```
 
-Подставьте вместо `ВАШ_ЛОГИН` и `ИМЯ_РЕПОЗИТОРИЯ` свои данные. Файлы `.env` и папка `node_modules` в корне уже добавлены в `.gitignore` и не попадут в репозиторий.
+`.env` и `node_modules` в `.gitignore` — секреты не попадут в репозиторий.
