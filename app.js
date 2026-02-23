@@ -246,6 +246,7 @@ function pickMovie(options) {
   return { movie: movie, reason: 'Подобрано по вашему настроению' };
 }
 
+/** Backend must return { recommendation: { title, description, rating, year, country, genres, ageLimit } } */
 var API_RECOMMEND_URL = '/api/recommend';
 
 var TMDB_API_KEY = '7d7983a4442f13b2d23ad89cfea14294';
