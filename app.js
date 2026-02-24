@@ -504,6 +504,8 @@ function getRecommendationFromApi(options) {
 
   const app = document.getElementById('app');
 
+  var IMDB_ICON_SVG = '<svg width="28" height="12" viewBox="0 0 28 12" fill="none" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" clip-rule="evenodd" d="M23.3202 3.67593C23.0666 3.79201 22.8363 3.96809 22.6298 4.20416V1H20.1361V10.8497H22.4665C22.5485 10.5316 22.5993 10.3329 22.6195 10.2537L22.6276 10.2222C22.8386 10.4745 23.0706 10.6641 23.3253 10.7897C23.5789 10.9159 23.9584 10.9787 24.2522 10.9787C24.6612 10.9787 25.0141 10.8727 25.3119 10.6602C25.6092 10.4482 25.7986 10.197 25.8792 9.90818C25.9597 9.61883 26 9.1792 26 8.58816V5.82475C26 5.23035 25.9864 4.84231 25.9597 4.66006C25.9331 4.47781 25.8536 4.2922 25.7215 4.10211C25.5893 3.91201 25.397 3.76453 25.1451 3.65911C24.8933 3.55369 24.596 3.50098 24.2534 3.50098C23.9556 3.50098 23.5743 3.55986 23.3202 3.67593ZM23.4308 9.36313C23.3832 9.48818 23.1744 9.55154 23.0167 9.55154C22.8624 9.55154 22.7597 9.49098 22.7076 9.3693C22.6554 9.24817 22.6298 8.97172 22.6298 8.53882V5.93578C22.6298 5.48718 22.6525 5.20736 22.6985 5.09577C22.7439 4.9853 22.8437 4.92922 22.998 4.92922C23.1557 4.92922 23.3673 4.99259 23.4217 5.11988C23.4756 5.24717 23.5029 5.51914 23.5029 5.93578V8.45975C23.4864 8.97845 23.4626 9.27958 23.4308 9.36313Z" fill="#000000"/><path d="M9.07901 1.08573L8.4794 5.6873L8.37708 4.9966C8.2188 3.92819 8.12932 3.32418 8.10897 3.1852C8.00062 2.38164 7.89738 1.68238 7.79867 1.08573H4.44269V10.9354H6.71008L6.71802 4.43177L7.67217 10.9354H9.2872L10.192 4.28709L10.2005 10.9354H12.4605V1.08573H9.07901Z" fill="#000000"/><path d="M3.58847 1.15031H1V11H3.58847V1.15031Z" fill="#000000"/><path fill-rule="evenodd" clip-rule="evenodd" d="M17.9031 10.8351C18.2112 10.7683 18.4698 10.6506 18.6797 10.4829C18.889 10.3147 19.036 10.082 19.1199 9.78419C19.2045 9.48699 19.2544 8.89651 19.2544 8.01332V4.55457C19.2544 3.62259 19.2175 2.99791 19.1602 2.68052C19.1023 2.36257 18.9588 2.07378 18.7291 1.81471C18.4988 1.55564 18.1629 1.36947 17.7216 1.2562C17.2797 1.14293 16.5593 1.08573 15.3062 1.08573H13.3752V10.9354H16.511C17.2337 10.913 17.6978 10.8799 17.9031 10.8351ZM16.734 3.13474C16.7623 3.26035 16.7771 3.54521 16.7771 3.99045V7.80921C16.7771 8.46473 16.734 8.86623 16.6483 9.01427C16.5621 9.16231 16.3329 9.23577 15.9614 9.23577V2.77024C16.2433 2.77024 16.4356 2.79996 16.5377 2.85828C16.6398 2.91716 16.7056 3.00913 16.734 3.13474Z" fill="#000000"/></svg>';
+
   function getCharacterSrc(mood) {
     if (!mood) return 'assets/characters/Mood=simple.png';
     var file = MOOD_TO_CHARACTER[mood] || MOOD_TO_CHARACTER.neutral;
@@ -783,7 +785,7 @@ function getRecommendationFromApi(options) {
       if (typeof rec === 'string') {
         if (titleEl) titleEl.textContent = 'Ваша рекомендация';
         if (descEl) descEl.textContent = rec;
-        if (imdbEl) { imdbEl.textContent = ''; imdbEl.style.display = 'none'; }
+        if (imdbEl) { var r = imdbEl.querySelector('.imdb-badge__rating'); if (r) r.textContent = ''; imdbEl.style.display = 'none'; }
         if (metaEl) metaEl.textContent = '';
         var t = getRecommendationTitle(rec);
         if (t && sessionHistory.indexOf(t) === -1) sessionHistory.push(t);
@@ -791,11 +793,12 @@ function getRecommendationFromApi(options) {
         if (titleEl) titleEl.textContent = rec.title != null ? String(rec.title) : '';
         if (descEl) descEl.textContent = rec.description != null ? String(rec.description) : '';
         if (imdbEl) {
+          var ratingSpan = imdbEl.querySelector('.imdb-badge__rating');
           if (rec.rating != null && rec.rating !== '') {
-            imdbEl.textContent = 'IMDb ≈ ' + rec.rating;
+            if (ratingSpan) ratingSpan.textContent = '≈ ' + rec.rating;
             imdbEl.style.display = '';
           } else {
-            imdbEl.textContent = '';
+            if (ratingSpan) ratingSpan.textContent = '';
             imdbEl.style.display = 'none';
           }
         }
@@ -875,7 +878,10 @@ function getRecommendationFromApi(options) {
     var countriesStr = movie.countries && movie.countries.length ? movie.countries.join(', ') : '';
     var genresStr = movie.genres && movie.genres.length ? movie.genres.join(', ') : '';
     var metaRest = [movie.ageRating, movie.year, countriesStr, genresStr].filter(Boolean).join(' • ');
-    var imdbBadgeHtml = (movie.imdb != null && movie.imdb !== '') ? '<span id="result-imdb" class="imdb-badge">IMDb ≈ ' + escapeHtml(String(movie.imdb)) + '</span>' : '<span id="result-imdb" class="imdb-badge" style="display:none"></span>';
+    var ratingVal = (movie.imdb != null && movie.imdb !== '') ? escapeHtml(String(movie.imdb)) : '';
+    var imdbBadgeHtml = ratingVal
+      ? '<span id="result-imdb" class="imdb-badge">' + IMDB_ICON_SVG + '<span class="imdb-badge__rating">≈ ' + ratingVal + '</span></span>'
+      : '<span id="result-imdb" class="imdb-badge" style="display:none">' + IMDB_ICON_SVG + '<span class="imdb-badge__rating"></span></span>';
 
     app.innerHTML =
       '<section class="screen screen-movie">' +
