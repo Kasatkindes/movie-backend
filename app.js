@@ -776,25 +776,33 @@ function getRecommendationFromApi(options) {
       var rec = data.recommendation;
       var titleEl = document.getElementById('result-title');
       var descEl = document.getElementById('result-description');
+      var imdbEl = document.getElementById('result-imdb');
       var metaEl = document.getElementById('result-meta');
       var backdropEl = document.getElementById('result-backdrop');
 
       if (typeof rec === 'string') {
         if (titleEl) titleEl.textContent = 'Ваша рекомендация';
         if (descEl) descEl.textContent = rec;
+        if (imdbEl) { imdbEl.textContent = ''; imdbEl.style.display = 'none'; }
         if (metaEl) metaEl.textContent = '';
         var t = getRecommendationTitle(rec);
         if (t && sessionHistory.indexOf(t) === -1) sessionHistory.push(t);
       } else {
         if (titleEl) titleEl.textContent = rec.title != null ? String(rec.title) : '';
         if (descEl) descEl.textContent = rec.description != null ? String(rec.description) : '';
+        if (imdbEl) {
+          if (rec.rating != null && rec.rating !== '') {
+            imdbEl.textContent = 'IMDb ≈ ' + rec.rating;
+            imdbEl.style.display = '';
+          } else {
+            imdbEl.textContent = '';
+            imdbEl.style.display = 'none';
+          }
+        }
         var recAge = rec.ageLimit != null ? String(rec.ageLimit) : (rec.ageRating != null ? String(rec.ageRating) : '');
         var recCountry = rec.country != null ? String(rec.country) : (Array.isArray(rec.countries) ? rec.countries.join(', ') : (rec.countries != null ? String(rec.countries) : ''));
         var recGenres = rec.genres != null ? String(rec.genres) : '';
-        var recMetaParts = [];
-        if (rec.rating != null && rec.rating !== '') recMetaParts.push('IMDb ≈ ' + rec.rating);
-        recMetaParts.push(recAge, rec.year, recCountry, recGenres);
-        var recMetaRest = recMetaParts.filter(Boolean).join(' • ');
+        var recMetaRest = [recAge, rec.year, recCountry, recGenres].filter(Boolean).join(' • ');
         if (metaEl) metaEl.textContent = recMetaRest;
         if (backdropEl) {
           var backdropTitle = (rec.title != null && String(rec.title).trim()) ? String(rec.title).trim() : '';
@@ -866,10 +874,8 @@ function getRecommendationFromApi(options) {
       : escapeHtml(movie.title);
     var countriesStr = movie.countries && movie.countries.length ? movie.countries.join(', ') : '';
     var genresStr = movie.genres && movie.genres.length ? movie.genres.join(', ') : '';
-    var metaParts = [];
-    if (movie.imdb != null && movie.imdb !== '') metaParts.push('IMDb ≈ ' + movie.imdb);
-    metaParts.push(movie.ageRating, movie.year, countriesStr, genresStr);
-    var metaRest = metaParts.filter(Boolean).join(' • ');
+    var metaRest = [movie.ageRating, movie.year, countriesStr, genresStr].filter(Boolean).join(' • ');
+    var imdbBadgeHtml = (movie.imdb != null && movie.imdb !== '') ? '<span id="result-imdb" class="imdb-badge">IMDb ≈ ' + escapeHtml(String(movie.imdb)) + '</span>' : '<span id="result-imdb" class="imdb-badge" style="display:none"></span>';
 
     app.innerHTML =
       '<section class="screen screen-movie">' +
@@ -882,6 +888,7 @@ function getRecommendationFromApi(options) {
         '<main class="result-content">' +
           '<div id="result-backdrop" class="result-backdrop">' + posterHtml + '</div>' +
           '<div class="result-meta-row">' +
+            imdbBadgeHtml +
             '<span id="result-meta" class="result-meta">' + escapeHtml(metaRest) + '</span>' +
           '</div>' +
           '<div class="result-desc-card">' +

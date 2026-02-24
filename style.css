@@ -710,16 +710,17 @@ body {
 .screen-movie .result-meta-row .imdb-badge {
   flex-shrink: 0;
   margin: 0;
-  padding: 4px 10px;
-  border-radius: 8px;
-  background: linear-gradient(90deg, #EBA097 0%, #EBC874 51%, #DAA22D 100%);
-  color: #000000;
-  font-size: 16px;
-  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #FFD66B 0%, #F6A6C1 100%);
+  color: #111111;
+  font-size: 14px;
+  font-weight: 600;
   line-height: 1.4;
   display: inline-flex;
   align-items: center;
-  box-shadow: none;
+  -webkit-background-clip: padding-box;
+  background-clip: padding-box;
 }
 
 .screen-movie .result-meta-row .result-meta {
