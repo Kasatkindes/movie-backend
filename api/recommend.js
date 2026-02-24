@@ -6,6 +6,11 @@ const MODEL = 'llama-3.1-8b-instant';
 
 const SYSTEM_PROMPT = `Ты — сервис подбора фильмов. Выдай ОДИН фильм строго в формате JSON.
 Если в запросе передан список "exclude" — КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО возвращать фильмы из этого списка. Дай один фильм под указанные фильтры, кроме списка exclude.
+Учитывай параметр популярности фильма:
+- 'gold' (Золотой фонд): Только сверхпопулярные мировые хиты, шедевры, которые знают все (на уровне Титаника, Бойцовского клуба, Начала).
+- 'middle' (Крепкое кино): Фильмы средней популярности. Не мейнстрим первого эшелона, но знакомые многим киноманам.
+- 'underground' (Андеграунд): Нишевые, малоизвестные, авторские фильмы. Те, о которых слышало мало людей, но которые могут быть очень крутыми.
+Если параметр популярности не указан, выбирай на своё усмотрение.
 Только реальные фильмы (IMDb/TMDB). Один JSON-объект без markdown. Формат:
 {"title":"Название на русском","original_title":"Original Title","description":"Краткое описание.","rating":"7.5","year":2010,"country":"США","genres":"Драма","ageLimit":"16+"}
 Поля: title, original_title, description, rating, year, country, genres, ageLimit.`;
@@ -49,19 +54,18 @@ module.exports = async (req, res) => {
       return;
     }
 
-    let mood = null, epoch = null, rating = null, exclude = [];
+    let mood = null, epoch = null, rating = null, exclude = [], popularity = null;
     const rawBody = req.body ?? {};
     try {
       const body = typeof rawBody === 'string' ? JSON.parse(rawBody) : (typeof rawBody === 'object' && rawBody !== null ? rawBody : {});
       if (body && typeof body === 'object') {
-        mood = body.mood;
-        epoch = body.epoch;
-        rating = body.rating;
-        exclude = Array.isArray(body.exclude) ? body.exclude : [];
+        const { mood: m, epoch: e, rating: r, exclude: ex, popularity: p } = body;
+        mood = m; epoch = e; rating = r; popularity = p;
+        exclude = Array.isArray(ex) ? ex : [];
       }
     } catch (_) {}
 
-    const userMessage = `Подбери один фильм. Настроение: ${mood || 'любое'}. Эпоха: ${epoch || 'любая'}. Рейтинг: ${rating || 'любой'}. Исключить (запрещено предлагать): ${exclude.length ? exclude.slice(0, 50).join(', ') : '—'}. Ответь только JSON в указанном формате.`;
+    const userMessage = `Подбери один фильм. Настроение: ${mood || 'любое'}. Эпоха: ${epoch || 'любая'}. Рейтинг: ${rating || 'любой'}. Популярность: ${popularity || 'любая'}. Исключить: ${exclude.length ? exclude.slice(0, 50).join(', ') : '—'}. Ответь только JSON в указанном формате.`;
 
     const client = new Groq({ apiKey });
     const completion = await client.chat.completions.create({

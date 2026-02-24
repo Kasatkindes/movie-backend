@@ -346,6 +346,7 @@ function getRecommendationFromApi(options) {
       mood: options.mood || null,
       epoch: options.epoch || null,
       rating: options.rating || null,
+      popularity: options.popularity || null,
       exclude: options.exclude || []
     })
   }).then(function (res) {
@@ -445,7 +446,7 @@ function getRecommendationFromApi(options) {
   /** Запрашивает рекомендацию; при дубликате в sessionHistory автоматически повторяет запрос до нового фильма (макс. 3 попытки). */
   function fetchRecommendationWithRetry(opts, maxAttempts) {
     maxAttempts = maxAttempts == null ? 3 : maxAttempts;
-    opts = { mood: opts.mood, epoch: opts.epoch, rating: opts.rating, exclude: sessionHistory.slice(0) };
+    opts = { mood: opts.mood, epoch: opts.epoch, rating: opts.rating, popularity: opts.popularity, exclude: sessionHistory.slice(0) };
     var attempt = 0;
 
     function tryOnce() {
@@ -574,7 +575,7 @@ function getRecommendationFromApi(options) {
             '<div class="chips-epoch-scroll" role="group">' +
               '<div class="chips chips-epoch-row">' + epochChipsHtml + '</div>' +
             '</div>' +
-            '<p class="section-label">IMDb рейтинг</p>' +
+            '<p class="section-label">Рейтинг</p>' +
             '<div class="chips chips-rating" role="group">' + ratingChipsHtml + '</div>' +
             '<p class="section-label">Популярность</p>' +
             '<div class="chips-popularity-scroll" role="group">' +
@@ -775,25 +776,25 @@ function getRecommendationFromApi(options) {
       var rec = data.recommendation;
       var titleEl = document.getElementById('result-title');
       var descEl = document.getElementById('result-description');
-      var imdbEl = document.getElementById('result-imdb');
       var metaEl = document.getElementById('result-meta');
       var backdropEl = document.getElementById('result-backdrop');
 
       if (typeof rec === 'string') {
         if (titleEl) titleEl.textContent = 'Ваша рекомендация';
         if (descEl) descEl.textContent = rec;
-        if (imdbEl) imdbEl.textContent = '';
         if (metaEl) metaEl.textContent = '';
         var t = getRecommendationTitle(rec);
         if (t && sessionHistory.indexOf(t) === -1) sessionHistory.push(t);
       } else {
         if (titleEl) titleEl.textContent = rec.title != null ? String(rec.title) : '';
         if (descEl) descEl.textContent = rec.description != null ? String(rec.description) : '';
-        if (imdbEl) imdbEl.textContent = rec.rating != null && rec.rating !== '' ? 'IMDb ≈ ' + rec.rating : '';
         var recAge = rec.ageLimit != null ? String(rec.ageLimit) : (rec.ageRating != null ? String(rec.ageRating) : '');
         var recCountry = rec.country != null ? String(rec.country) : (Array.isArray(rec.countries) ? rec.countries.join(', ') : (rec.countries != null ? String(rec.countries) : ''));
         var recGenres = rec.genres != null ? String(rec.genres) : '';
-        var recMetaRest = [recAge, rec.year, recCountry, recGenres].filter(Boolean).join(' • ');
+        var recMetaParts = [];
+        if (rec.rating != null && rec.rating !== '') recMetaParts.push('IMDb ≈ ' + rec.rating);
+        recMetaParts.push(recAge, rec.year, recCountry, recGenres);
+        var recMetaRest = recMetaParts.filter(Boolean).join(' • ');
         if (metaEl) metaEl.textContent = recMetaRest;
         if (backdropEl) {
           var backdropTitle = (rec.title != null && String(rec.title).trim()) ? String(rec.title).trim() : '';
@@ -865,7 +866,10 @@ function getRecommendationFromApi(options) {
       : escapeHtml(movie.title);
     var countriesStr = movie.countries && movie.countries.length ? movie.countries.join(', ') : '';
     var genresStr = movie.genres && movie.genres.length ? movie.genres.join(', ') : '';
-    var metaRest = [movie.ageRating, movie.year, countriesStr, genresStr].filter(Boolean).join(' • ');
+    var metaParts = [];
+    if (movie.imdb != null && movie.imdb !== '') metaParts.push('IMDb ≈ ' + movie.imdb);
+    metaParts.push(movie.ageRating, movie.year, countriesStr, genresStr);
+    var metaRest = metaParts.filter(Boolean).join(' • ');
 
     app.innerHTML =
       '<section class="screen screen-movie">' +
@@ -878,7 +882,6 @@ function getRecommendationFromApi(options) {
         '<main class="result-content">' +
           '<div id="result-backdrop" class="result-backdrop">' + posterHtml + '</div>' +
           '<div class="result-meta-row">' +
-            '<span id="result-imdb" class="imdb-badge">IMDb ≈ ' + movie.imdb + '</span>' +
             '<span id="result-meta" class="result-meta">' + escapeHtml(metaRest) + '</span>' +
           '</div>' +
           '<div class="result-desc-card">' +
@@ -899,7 +902,7 @@ function getRecommendationFromApi(options) {
     });
     app.querySelector('#btn-another').addEventListener('click', function () {
       renderLoadingScreen();
-      var opts = { mood: state.selectedMood || 'neutral', epoch: state.selectedEpoch, rating: state.selectedRating };
+      var opts = { mood: state.selectedMood || 'neutral', epoch: state.selectedEpoch, rating: state.selectedRating, popularity: state.selectedPopularity };
       fetchRecommendationWithRetry(opts, 3).then(function (result) {
         fadeOutLoadingThenShowMovie(result, result.opts);
       });
@@ -956,7 +959,12 @@ function getRecommendationFromApi(options) {
 
   function onFindMovieClick() {
     renderLoadingScreen();
-    var opts = { mood: state.selectedMood || 'neutral', epoch: state.selectedEpoch, rating: state.selectedRating };
+    var opts = {
+      mood: state.selectedMood || 'neutral',
+      epoch: state.selectedEpoch,
+      rating: state.selectedRating,
+      popularity: state.selectedPopularity
+    };
     fetchRecommendationWithRetry(opts, 3).then(function (result) {
       fadeOutLoadingThenShowMovie(result, result.opts);
     });
