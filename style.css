@@ -743,7 +743,7 @@ body {
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 16px 16px 140px;
+  padding: 16px 16px 120px;
   margin-top: 0;
 }
 
@@ -855,6 +855,56 @@ body {
   color: rgba(255, 255, 255, 0.9);
   margin: 0 16px;
   text-align: center;
+}
+
+/* Reusable SecondaryButton (circular icon button) */
+.btn-secondary-circle {
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border: 1px solid #2B2B2B;
+  border-radius: 999px;
+  background: #2B2B2B;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.btn-secondary-circle:hover {
+  background: #383838;
+}
+
+.btn-secondary-circle:active {
+  transform: scale(0.97);
+}
+
+.btn-secondary-circle img {
+  width: 24px;
+  height: 24px;
+  display: block;
+  object-fit: contain;
+}
+
+/* Bottom action bar on movie result screen */
+.screen-movie .bottom-actions {
+  position: fixed;
+  bottom: 20px;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 0 20px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.screen-movie .bottom-actions > * {
+  pointer-events: auto;
 }
 
 .screen-movie .result-footer {

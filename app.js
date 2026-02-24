@@ -886,9 +886,6 @@ function getRecommendationFromApi(options) {
     app.innerHTML =
       '<section class="screen screen-movie">' +
         '<header class="result-header" id="result-header">' +
-          '<button type="button" id="btn-back" class="btn-back-inline">' +
-            '<img src="assets/icons/back.svg" alt="" width="24" height="24">' +
-          '</button>' +
           '<h1 class="result-header-title">Выбрать настроение</h1>' +
         '</header>' +
         '<main class="result-content">' +
@@ -902,12 +899,18 @@ function getRecommendationFromApi(options) {
             '<p id="result-description" class="result-description">' + escapeHtml(movie.description) + '</p>' +
           '</div>' +
         '</main>' +
-        '<footer class="result-footer">' +
+        '<div class="bottom-actions">' +
+          '<button type="button" id="btn-back" class="btn-secondary-circle" aria-label="Назад">' +
+            '<img src="assets/icons/back.svg" alt="" width="24" height="24">' +
+          '</button>' +
           '<button type="button" id="btn-another" class="btn-primary">' +
             '<img class="btn-icon" src="assets/icons/reload.svg" alt="" width="24" height="24">' +
-            '<span>Хочу другой фильм</span>' +
+            '<span>Поменяй</span>' +
           '</button>' +
-        '</footer>' +
+          '<button type="button" id="btn-favorite" class="btn-secondary-circle" aria-label="В избранное">' +
+            '<img src="assets/icons/favourite_off.svg" alt="" width="24" height="24">' +
+          '</button>' +
+        '</div>' +
       '</section>';
 
     app.querySelector('#btn-back').addEventListener('click', function () {
