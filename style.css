@@ -743,7 +743,7 @@ body {
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 16px 16px 120px;
+  padding: 20px 16px 120px;
   margin-top: 0;
 }
 
@@ -862,9 +862,10 @@ body {
   width: 56px;
   height: 56px;
   padding: 0;
-  border: 1px solid #2B2B2B;
+  border: 1px solid #36373A;
   border-radius: 999px;
-  background: #2B2B2B;
+  background: #191919;
+  box-shadow: none;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -874,7 +875,7 @@ body {
 }
 
 .btn-secondary-circle:hover {
-  background: #383838;
+  background: #222;
 }
 
 .btn-secondary-circle:active {
@@ -888,12 +889,23 @@ body {
   object-fit: contain;
 }
 
-/* Bottom action bar on movie result screen */
-.screen-movie .bottom-actions {
+/* Fixed bottom panel on movie result screen */
+.screen-movie .movie-result-bottom-panel {
   position: fixed;
-  bottom: 20px;
+  bottom: 0;
   left: 0;
   right: 0;
+  height: 108px;
+  background: #161B22;
+  border-top: 1px solid #2B2B2B;
+  z-index: 5;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 16px;
+}
+
+.screen-movie .bottom-actions {
   display: flex;
   align-items: center;
   justify-content: center;
