@@ -4,16 +4,11 @@ const Groq = require('groq-sdk');
 
 const MODEL = 'llama-3.3-70b-versatile';
 
-const SYSTEM_PROMPT = `Ты — сервис подбора фильмов. Критичные правила:
-1. ЗАПРЕЩЕНО выдумывать или изменять официальные названия фильмов. Используй ТОЛЬКО реальные названия из базы IMDb/TMDB.
-2. Перед формированием ответа проверь, что "title" и "original_title" соответствуют одному и тому же реальному фильму (русское и английское название одной картины).
-3. Описание (description) должно быть кратким и соответствовать РЕАЛЬНОМУ сюжету фильма, а не выдуманному.
-4. Если под фильтры подходит только один общеизвестный фильм, постарайся найти менее очевидные, но подходящие под критерии варианты (скрытые жемчужины).
-5. Используй случайную выборку из подходящих фильмов, не зацикливайся на первом месте рейтинга.
-
-Ответь ТОЛЬКО одним JSON-объектом без markdown и текста до/после. ОБЯЗАТЕЛЬНО указывай original_title — оригинальное название на английском (как в IMDb/TMDB). Формат строго:
-{"title":"Название на русском","original_title":"Original Title in English","description":"Описание 2-4 предложения.","rating":"7.5","year":2010,"country":"США","genres":"Драма, Комедия","ageLimit":"16+"}
-Поля: title (строка), original_title (строка, ОБЯЗАТЕЛЬНО), description (строка), rating (строка), year (число), country (строка), genres (строка), ageLimit (строка: 0+, 6+, 12+, 16+, 18+). При необходимости можно добавить поле "is_unique": false — только если подходящих фильмов кроме уже исключённых по сути нет (альтернатив не осталось).`;
+const SYSTEM_PROMPT = `Ты — сервис подбора фильмов. Выдай ОДИН фильм строго в формате JSON.
+Если в запросе передан список "exclude" — КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО возвращать фильмы из этого списка. Дай один фильм под указанные фильтры, кроме списка exclude.
+Только реальные фильмы (IMDb/TMDB). Один JSON-объект без markdown. Формат:
+{"title":"Название на русском","original_title":"Original Title","description":"Краткое описание.","rating":"7.5","year":2010,"country":"США","genres":"Драма","ageLimit":"16+"}
+Поля: title, original_title, description, rating, year, country, genres, ageLimit.`;
 
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -53,7 +48,7 @@ module.exports = async (req, res) => {
     return;
   }
 
-  let mood = null, epoch = null, rating = null, exclude = [], seed = null;
+  let mood = null, epoch = null, rating = null, exclude = [];
   const rawBody = req.body ?? {};
   try {
     const body = typeof rawBody === 'string' ? JSON.parse(rawBody) : (typeof rawBody === 'object' && rawBody !== null ? rawBody : {});
@@ -62,12 +57,10 @@ module.exports = async (req, res) => {
       epoch = body.epoch;
       rating = body.rating;
       exclude = Array.isArray(body.exclude) ? body.exclude : [];
-      seed = body.seed != null ? String(body.seed) : null;
     }
   } catch (_) {}
 
-  const seedHint = seed ? ` Вариант выбора (для разнообразия): ${seed}.` : '';
-  const userMessage = `Подбери один фильм. Настроение: ${mood || 'любое'}. Эпоха: ${epoch || 'любая'}. Рейтинг: ${rating || 'любой'}. Не предлагать: ${exclude.length ? exclude.slice(0, 20).join(', ') : '—'}.${seedHint} Ответь только JSON в указанном формате.`;
+  const userMessage = `Подбери один фильм. Настроение: ${mood || 'любое'}. Эпоха: ${epoch || 'любая'}. Рейтинг: ${rating || 'любой'}. Исключить (запрещено предлагать): ${exclude.length ? exclude.slice(0, 50).join(', ') : '—'}. Ответь только JSON в указанном формате.`;
 
   try {
     const client = new Groq({ apiKey });
@@ -97,8 +90,7 @@ module.exports = async (req, res) => {
     }
 
     const recommendation = toRecommendation(parsed);
-    const isUnique = parsed.is_unique !== false;
-    res.status(200).json({ recommendation, is_unique: isUnique });
+    res.status(200).json({ recommendation });
   } catch (err) {
     console.error('[api/recommend]', err);
     res.status(500).json({ error: err.message || 'Recommendation failed' });

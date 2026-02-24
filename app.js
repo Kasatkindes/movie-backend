@@ -337,7 +337,7 @@ function fetchMovieBackdrop(originalTitle, title, year) {
   });
 }
 
-/** Calls external backend. Returns { recommendation, is_unique } or null on failure. */
+/** Calls external backend. Returns { recommendation } or null on failure. */
 function getRecommendationFromApi(options) {
   return fetch(API_RECOMMEND_URL, {
     method: 'POST',
@@ -346,8 +346,7 @@ function getRecommendationFromApi(options) {
       mood: options.mood || null,
       epoch: options.epoch || null,
       rating: options.rating || null,
-      exclude: options.exclude || [],
-      seed: options.seed != null ? options.seed : undefined
+      exclude: options.exclude || []
     })
   }).then(function (res) {
     if (!res.ok) return null;
@@ -418,46 +417,14 @@ function getRecommendationFromApi(options) {
   const DEFAULT_MOOD_BACKGROUND = '#C2B8FF';
 
   const VIEWED_MOVIES_KEY = 'movieAppViewedMovies';
-  const SEEN_MOVIES_KEY = 'seenMovies';
-  const SHOWN_MOVIES_KEY = 'shownMovies';
 
-  function getShownMovies() {
-    try {
-      var raw = localStorage.getItem(SHOWN_MOVIES_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch (e) {
-      return [];
-    }
-  }
+  /** Глобальная история показанных за сессию фильмов (по title). */
+  var sessionHistory = [];
 
-  function saveShownMovie(idOrTitle) {
-    if (idOrTitle == null || String(idOrTitle).trim() === '') return;
-    try {
-      var shown = getShownMovies();
-      var key = String(idOrTitle).trim();
-      if (shown.indexOf(key) === -1) {
-        shown.push(key);
-        localStorage.setItem(SHOWN_MOVIES_KEY, JSON.stringify(shown));
-      }
-    } catch (e) {}
-  }
-
-  function getSeenMovies() {
-    try {
-      var raw = sessionStorage.getItem(SEEN_MOVIES_KEY);
-      return raw ? JSON.parse(raw) : [];
-    } catch (e) {
-      return [];
-    }
-  }
-
-  function saveSeenMovie(idOrTitle) {
-    if (idOrTitle == null || String(idOrTitle).trim() === '') return;
-    try {
-      var seen = getSeenMovies();
-      seen.push(String(idOrTitle).trim());
-      sessionStorage.setItem(SEEN_MOVIES_KEY, JSON.stringify(seen));
-    } catch (e) {}
+  function getRecommendationTitle(rec) {
+    if (!rec) return '';
+    if (typeof rec === 'string') return String(rec).trim();
+    return (rec.title != null ? String(rec.title) : '').trim();
   }
 
   function getMovieKey(rec) {
@@ -468,25 +435,24 @@ function getRecommendationFromApi(options) {
     return null;
   }
 
+  /** Запрашивает рекомендацию; при дубликате в sessionHistory автоматически повторяет запрос до нового фильма (макс. 15 попыток). */
   function fetchRecommendationWithRetry(opts, maxAttempts) {
-    maxAttempts = maxAttempts == null ? 5 : maxAttempts;
-    var seen = getSeenMovies();
+    maxAttempts = maxAttempts == null ? 15 : maxAttempts;
+    opts = { mood: opts.mood, epoch: opts.epoch, rating: opts.rating, exclude: sessionHistory.slice(0) };
     var attempt = 0;
-    if (!opts.exclude) opts.exclude = getShownMovies();
-    if (opts.seed == null) opts.seed = Date.now() + '-' + Math.random();
 
     function tryOnce() {
       attempt += 1;
       return getRecommendationFromApi(opts).then(function (data) {
         if (!data || !data.recommendation) {
-          return { data: data, opts: opts };
+          return { data: data, opts: opts, exhausted: false };
         }
-        var key = getMovieKey(data.recommendation);
-        if (!key || seen.indexOf(key) === -1) {
-          return { data: data, opts: opts };
+        var title = getRecommendationTitle(data.recommendation);
+        if (!title || sessionHistory.indexOf(title) === -1) {
+          return { data: data, opts: opts, exhausted: false };
         }
         if (attempt >= maxAttempts) {
-          return { data: data, opts: opts };
+          return { data: data, opts: opts, exhausted: true };
         }
         return tryOnce();
       });
@@ -705,15 +671,13 @@ function getRecommendationFromApi(options) {
     loadingPhraseIntervalId = setInterval(nextPhrase, 2000);
   }
 
-  function fadeOutLoadingThenShowMovie(data, opts) {
+  function fadeOutLoadingThenShowMovie(result, opts) {
+    var data = result && result.data;
     var section = app.querySelector('.screen-loading');
     function proceed() {
       if (data && data.recommendation) {
-        var key = getMovieKey(data.recommendation);
-        var shown = getShownMovies();
-        var isDuplicate = key && shown.indexOf(key) !== -1;
-        if (data.is_unique === false || isDuplicate) {
-          var title = (data.recommendation.title != null ? String(data.recommendation.title) : '').trim() || 'этот фильм';
+        if (result.exhausted) {
+          var title = getRecommendationTitle(data.recommendation) || 'этот фильм';
           renderNoMoreVariantsScreen(title);
           return;
         }
@@ -780,8 +744,8 @@ function getRecommendationFromApi(options) {
         if (descEl) descEl.textContent = rec;
         if (imdbEl) imdbEl.textContent = '';
         if (metaEl) metaEl.textContent = '';
-        saveSeenMovie(getMovieKey(rec));
-        saveShownMovie(getMovieKey(rec));
+        var t = getRecommendationTitle(rec);
+        if (t && sessionHistory.indexOf(t) === -1) sessionHistory.push(t);
       } else {
         if (titleEl) titleEl.textContent = rec.title != null ? String(rec.title) : '';
         if (descEl) descEl.textContent = rec.description != null ? String(rec.description) : '';
@@ -840,8 +804,8 @@ function getRecommendationFromApi(options) {
             localStorage.setItem(VIEWED_MOVIES_KEY, JSON.stringify(state.viewedMovies));
           } catch (e) {}
         }
-        saveSeenMovie(getMovieKey(rec));
-        saveShownMovie(getMovieKey(rec));
+        var t = getRecommendationTitle(rec);
+        if (t && sessionHistory.indexOf(t) === -1) sessionHistory.push(t);
       }
     } catch (err) {
       console.error('renderMovieFromBackendResponse', err);
@@ -895,9 +859,9 @@ function getRecommendationFromApi(options) {
     });
     app.querySelector('#btn-another').addEventListener('click', function () {
       renderLoadingScreen();
-      var opts = { mood: state.selectedMood || 'neutral', epoch: state.selectedEpoch, rating: state.selectedRating, exclude: getShownMovies() };
-      fetchRecommendationWithRetry(opts, 5).then(function (result) {
-        fadeOutLoadingThenShowMovie(result.data, result.opts);
+      var opts = { mood: state.selectedMood || 'neutral', epoch: state.selectedEpoch, rating: state.selectedRating };
+      fetchRecommendationWithRetry(opts, 15).then(function (result) {
+        fadeOutLoadingThenShowMovie(result, result.opts);
       });
     });
   }
@@ -952,9 +916,9 @@ function getRecommendationFromApi(options) {
 
   function onFindMovieClick() {
     renderLoadingScreen();
-    var opts = { mood: state.selectedMood || 'neutral', epoch: state.selectedEpoch, rating: state.selectedRating, exclude: getShownMovies() };
-    fetchRecommendationWithRetry(opts, 5).then(function (result) {
-      fadeOutLoadingThenShowMovie(result.data, result.opts);
+    var opts = { mood: state.selectedMood || 'neutral', epoch: state.selectedEpoch, rating: state.selectedRating };
+    fetchRecommendationWithRetry(opts, 15).then(function (result) {
+      fadeOutLoadingThenShowMovie(result, result.opts);
     });
   }
 
