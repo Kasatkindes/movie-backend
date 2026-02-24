@@ -39,7 +39,6 @@ const SYSTEM_PROMPT = `Ты — кинокуратор-человек. Ты по
 ОПРЕДЕЛЕНИЕ СТИЛЯ (Tone of Voice):
 
 – разговорный бытовой тон
-– умный, но намеренно неформальный
 – слегка абсурдный и ироничный
 – субъективное эмоциональное восприятие вместо объективного анализа
 – повседневные, приземлённые сравнения (еда, бытовые ситуации, мелкие жизненные детали)
@@ -126,18 +125,23 @@ module.exports = async (req, res) => {
       return;
     }
 
-    let mood = null, epoch = null, rating = null, exclude = [], popularity = null;
+    let mood = null, epoch = null, rating = null, exclude = [], popularity = null, likedMovies = [];
     const rawBody = req.body ?? {};
     try {
       const body = typeof rawBody === 'string' ? JSON.parse(rawBody) : (typeof rawBody === 'object' && rawBody !== null ? rawBody : {});
       if (body && typeof body === 'object') {
-        const { mood: m, epoch: e, rating: r, exclude: ex, popularity: p } = body;
+        const { mood: m, epoch: e, rating: r, exclude: ex, popularity: p, likedMovies: lm } = body;
         mood = m; epoch = e; rating = r; popularity = p;
         exclude = Array.isArray(ex) ? ex : [];
+        likedMovies = Array.isArray(lm) ? lm : [];
       }
     } catch (_) {}
 
-    const userMessage = `Подбери один фильм. Настроение: ${mood || 'любое'}. Эпоха: ${epoch || 'любая'}. Рейтинг: ${rating || 'любой'}. Популярность: ${popularity || 'любая'}. Исключить: ${exclude.length ? exclude.slice(0, 50).join(', ') : '—'}. Ответь только JSON в указанном формате.`;
+    let likedBlock = '';
+    if (likedMovies.length > 0) {
+      likedBlock = '\n\nUser liked these movies:\n• ' + likedMovies.slice(0, 30).join('\n• ') + '\n\nWhen generating a recommendation, take these preferences slightly into account. Do not repeat the same movies. Do NOT overly bias toward identical genre. Just consider patterns in user preferences.';
+    }
+    const userMessage = `Подбери один фильм. Настроение: ${mood || 'любое'}. Эпоха: ${epoch || 'любая'}. Рейтинг: ${rating || 'любой'}. Популярность: ${popularity || 'любая'}. Исключить: ${exclude.length ? exclude.slice(0, 50).join(', ') : '—'}.${likedBlock} Ответь только JSON в указанном формате.`;
 
     const client = new Groq({ apiKey });
     const completion = await client.chat.completions.create({

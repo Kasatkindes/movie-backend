@@ -347,7 +347,8 @@ function getRecommendationFromApi(options) {
       epoch: options.epoch || null,
       rating: options.rating || null,
       popularity: options.popularity || null,
-      exclude: options.exclude || []
+      exclude: options.exclude || [],
+      likedMovies: options.likedMovies || []
     })
   }).then(function (res) {
     if (!res.ok) {
@@ -425,6 +426,64 @@ function getRecommendationFromApi(options) {
   const DEFAULT_MOOD_BACKGROUND = '#C2B8FF';
 
   const VIEWED_MOVIES_KEY = 'movieAppViewedMovies';
+  const LIKED_MOVIES_KEY = 'likedMovies';
+  const HAS_SEEN_LIKE_TOOLTIP_KEY = 'hasSeenLikeTooltip';
+
+  function getLikedMovies() {
+    try {
+      var raw = localStorage.getItem(LIKED_MOVIES_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveLikedMovies(arr) {
+    try {
+      localStorage.setItem(LIKED_MOVIES_KEY, JSON.stringify(arr));
+    } catch (e) {}
+  }
+
+  function addLikedMovie(title) {
+    if (!title || !String(title).trim()) return false;
+    var key = String(title).trim();
+    var arr = getLikedMovies();
+    if (arr.indexOf(key) !== -1) return false;
+    arr.push(key);
+    saveLikedMovies(arr);
+    return true;
+  }
+
+  function removeLikedMovie(title) {
+    if (!title || !String(title).trim()) return;
+    var key = String(title).trim();
+    var arr = getLikedMovies().filter(function (t) { return t !== key; });
+    saveLikedMovies(arr);
+  }
+
+  function updateFavoriteButtonState(btn, title) {
+    if (!btn) return;
+    var img = btn.querySelector('img');
+    var key = title != null ? String(title).trim() : '';
+    var liked = key && getLikedMovies().indexOf(key) !== -1;
+    if (img) img.src = liked ? 'assets/icons/favourite_on.svg' : 'assets/icons/favourite_off.svg';
+    btn.classList.toggle('is-active', liked);
+  }
+
+  function showLikeTooltip() {
+    var toast = document.createElement('div');
+    toast.className = 'like-tooltip';
+    toast.setAttribute('role', 'status');
+    toast.textContent = 'Лайк учтён. Будем учитывать это в будущих рекомендациях.';
+    app.appendChild(toast);
+    requestAnimationFrame(function () { toast.classList.add('like-tooltip--visible'); });
+    setTimeout(function () {
+      toast.classList.remove('like-tooltip--visible');
+      setTimeout(function () {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, 300);
+    }, 3000);
+  }
 
   /** Глобальная история показанных за сессию фильмов (по title). */
   var sessionHistory = [];
@@ -446,7 +505,7 @@ function getRecommendationFromApi(options) {
   /** Запрашивает рекомендацию; при дубликате в sessionHistory автоматически повторяет запрос до нового фильма (макс. 3 попытки). */
   function fetchRecommendationWithRetry(opts, maxAttempts) {
     maxAttempts = maxAttempts == null ? 3 : maxAttempts;
-    opts = { mood: opts.mood, epoch: opts.epoch, rating: opts.rating, popularity: opts.popularity, exclude: sessionHistory.slice(0) };
+    opts = { mood: opts.mood, epoch: opts.epoch, rating: opts.rating, popularity: opts.popularity, exclude: sessionHistory.slice(0), likedMovies: getLikedMovies() };
     var attempt = 0;
 
     function tryOnce() {
@@ -807,6 +866,8 @@ function getRecommendationFromApi(options) {
         var recGenres = rec.genres != null ? String(rec.genres) : '';
         var recMetaRest = [recAge, rec.year, recCountry, recGenres].filter(Boolean).join(' • ');
         if (metaEl) metaEl.textContent = recMetaRest;
+        var btnFavorite = document.getElementById('btn-favorite');
+        updateFavoriteButtonState(btnFavorite, rec.title != null ? String(rec.title) : '');
         if (backdropEl) {
           var backdropTitle = (rec.title != null && String(rec.title).trim()) ? String(rec.title).trim() : '';
           var backdropOriginalTitle = (rec.original_title != null && String(rec.original_title).trim()) ? String(rec.original_title).trim() : '';
@@ -926,6 +987,30 @@ function getRecommendationFromApi(options) {
         fadeOutLoadingThenShowMovie(result, result.opts);
       });
     });
+
+    var btnFavorite = app.querySelector('#btn-favorite');
+    updateFavoriteButtonState(btnFavorite, movie.title);
+    if (btnFavorite) {
+      btnFavorite.addEventListener('click', function () {
+        var titleEl = document.getElementById('result-title');
+        var title = titleEl ? titleEl.textContent.trim() : '';
+        var isActive = btnFavorite.classList.contains('is-active');
+        if (isActive) {
+          removeLikedMovie(title);
+        } else {
+          var added = addLikedMovie(title);
+          if (added) {
+            try {
+              if (!localStorage.getItem(HAS_SEEN_LIKE_TOOLTIP_KEY)) {
+                showLikeTooltip();
+                localStorage.setItem(HAS_SEEN_LIKE_TOOLTIP_KEY, 'true');
+              }
+            } catch (e) {}
+          }
+        }
+        updateFavoriteButtonState(btnFavorite, title);
+      });
+    }
   }
 
   function onMoodClick(e) {
