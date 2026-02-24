@@ -42,27 +42,27 @@ module.exports = async (req, res) => {
     return;
   }
 
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey || typeof apiKey !== 'string') {
-    res.status(500).json({ error: 'GROQ_API_KEY not set' });
-    return;
-  }
-
-  let mood = null, epoch = null, rating = null, exclude = [];
-  const rawBody = req.body ?? {};
   try {
-    const body = typeof rawBody === 'string' ? JSON.parse(rawBody) : (typeof rawBody === 'object' && rawBody !== null ? rawBody : {});
-    if (body && typeof body === 'object') {
-      mood = body.mood;
-      epoch = body.epoch;
-      rating = body.rating;
-      exclude = Array.isArray(body.exclude) ? body.exclude : [];
+    const apiKey = process.env.GROQ_API_KEY;
+    if (!apiKey || typeof apiKey !== 'string') {
+      res.status(500).json({ error: 'GROQ_API_KEY not set', details: 'Check Groq API Key or Quota' });
+      return;
     }
-  } catch (_) {}
 
-  const userMessage = `Подбери один фильм. Настроение: ${mood || 'любое'}. Эпоха: ${epoch || 'любая'}. Рейтинг: ${rating || 'любой'}. Исключить (запрещено предлагать): ${exclude.length ? exclude.slice(0, 50).join(', ') : '—'}. Ответь только JSON в указанном формате.`;
+    let mood = null, epoch = null, rating = null, exclude = [];
+    const rawBody = req.body ?? {};
+    try {
+      const body = typeof rawBody === 'string' ? JSON.parse(rawBody) : (typeof rawBody === 'object' && rawBody !== null ? rawBody : {});
+      if (body && typeof body === 'object') {
+        mood = body.mood;
+        epoch = body.epoch;
+        rating = body.rating;
+        exclude = Array.isArray(body.exclude) ? body.exclude : [];
+      }
+    } catch (_) {}
 
-  try {
+    const userMessage = `Подбери один фильм. Настроение: ${mood || 'любое'}. Эпоха: ${epoch || 'любая'}. Рейтинг: ${rating || 'любой'}. Исключить (запрещено предлагать): ${exclude.length ? exclude.slice(0, 50).join(', ') : '—'}. Ответь только JSON в указанном формате.`;
+
     const client = new Groq({ apiKey });
     const completion = await client.chat.completions.create({
       model: MODEL,
@@ -92,7 +92,7 @@ module.exports = async (req, res) => {
     const recommendation = toRecommendation(parsed);
     res.status(200).json({ recommendation });
   } catch (err) {
-    console.error('[api/recommend]', err);
-    res.status(500).json({ error: err.message || 'Recommendation failed' });
+    console.error('GROQ ERROR:', err);
+    res.status(500).json({ error: err.message || 'Recommendation failed', details: 'Check Groq API Key or Quota' });
   }
 };

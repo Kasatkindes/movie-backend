@@ -337,7 +337,7 @@ function fetchMovieBackdrop(originalTitle, title, year) {
   });
 }
 
-/** Calls external backend. Returns { recommendation } or null on failure. */
+/** Calls external backend. Returns { recommendation } or null on failure; on 5xx returns { _error: true, status, message }. */
 function getRecommendationFromApi(options) {
   return fetch(API_RECOMMEND_URL, {
     method: 'POST',
@@ -349,13 +349,20 @@ function getRecommendationFromApi(options) {
       exclude: options.exclude || []
     })
   }).then(function (res) {
-    if (!res.ok) return null;
+    if (!res.ok) {
+      return res.json().then(function (body) {
+        return { _error: true, status: res.status, message: (body && body.error) || res.statusText };
+      }).catch(function () {
+        return { _error: true, status: res.status, message: res.statusText };
+      });
+    }
     return res.json();
   }).then(function (data) {
+    if (data && data._error) return data;
     if (!data || !data.recommendation) return null;
     return data;
-  }).catch(function () {
-    return null;
+  }).catch(function (e) {
+    return { _error: true, status: 0, message: e && e.message };
   });
 }
 
@@ -435,15 +442,18 @@ function getRecommendationFromApi(options) {
     return null;
   }
 
-  /** Запрашивает рекомендацию; при дубликате в sessionHistory автоматически повторяет запрос до нового фильма (макс. 15 попыток). */
+  /** Запрашивает рекомендацию; при дубликате в sessionHistory автоматически повторяет запрос до нового фильма (макс. 3 попытки). */
   function fetchRecommendationWithRetry(opts, maxAttempts) {
-    maxAttempts = maxAttempts == null ? 15 : maxAttempts;
+    maxAttempts = maxAttempts == null ? 3 : maxAttempts;
     opts = { mood: opts.mood, epoch: opts.epoch, rating: opts.rating, exclude: sessionHistory.slice(0) };
     var attempt = 0;
 
     function tryOnce() {
       attempt += 1;
       return getRecommendationFromApi(opts).then(function (data) {
+        if (data && data._error) {
+          return { data: null, opts: opts, exhausted: false, serverError: true, status: data.status, message: data.message };
+        }
         if (!data || !data.recommendation) {
           return { data: data, opts: opts, exhausted: false };
         }
@@ -675,6 +685,12 @@ function getRecommendationFromApi(options) {
     var data = result && result.data;
     var section = app.querySelector('.screen-loading');
     function proceed() {
+      if (result.serverError && (result.status === 500 || result.status >= 500 || result.status === 0)) {
+        var msg = 'Упс, нейронка устала. Попробуйте через минуту';
+        console.error(msg);
+        renderServerErrorScreen(msg);
+        return;
+      }
       if (data && data.recommendation) {
         if (result.exhausted) {
           var title = getRecommendationTitle(data.recommendation) || 'этот фильм';
@@ -698,6 +714,29 @@ function getRecommendationFromApi(options) {
     } else {
       proceed();
     }
+  }
+
+  function renderServerErrorScreen(message) {
+    var text = escapeHtml(message);
+    app.innerHTML =
+      '<section class="screen screen-movie screen-no-more">' +
+        '<header class="result-header">' +
+          '<button type="button" id="btn-back-error" class="btn-back-inline">' +
+            '<img src="assets/icons/back.svg" alt="" width="24" height="24">' +
+          '</button>' +
+          '<h1 class="result-header-title">Выбрать настроение</h1>' +
+        '</header>' +
+        '<main class="result-content">' +
+          '<div class="no-more-message">' + text + '</div>' +
+        '</main>' +
+        '<footer class="result-footer">' +
+          '<button type="button" id="btn-retry-later" class="btn-primary">' +
+            '<span>Попробовать снова</span>' +
+          '</button>' +
+        '</footer>' +
+      '</section>';
+    app.querySelector('#btn-back-error').addEventListener('click', renderMoodScreen);
+    app.querySelector('#btn-retry-later').addEventListener('click', renderMoodScreen);
   }
 
   function renderNoMoreVariantsScreen(movieTitle) {
@@ -860,7 +899,7 @@ function getRecommendationFromApi(options) {
     app.querySelector('#btn-another').addEventListener('click', function () {
       renderLoadingScreen();
       var opts = { mood: state.selectedMood || 'neutral', epoch: state.selectedEpoch, rating: state.selectedRating };
-      fetchRecommendationWithRetry(opts, 15).then(function (result) {
+      fetchRecommendationWithRetry(opts, 3).then(function (result) {
         fadeOutLoadingThenShowMovie(result, result.opts);
       });
     });
@@ -917,7 +956,7 @@ function getRecommendationFromApi(options) {
   function onFindMovieClick() {
     renderLoadingScreen();
     var opts = { mood: state.selectedMood || 'neutral', epoch: state.selectedEpoch, rating: state.selectedRating };
-    fetchRecommendationWithRetry(opts, 15).then(function (result) {
+    fetchRecommendationWithRetry(opts, 3).then(function (result) {
       fadeOutLoadingThenShowMovie(result, result.opts);
     });
   }
