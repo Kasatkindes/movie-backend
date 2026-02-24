@@ -977,10 +977,12 @@ function getRecommendationFromApi(options) {
       renderMoodScreen();
     });
     app.querySelector('#btn-another').addEventListener('click', function () {
-      try {
-        var snd = new Audio('assets/sound/core_sound.mp3');
-        snd.play().catch(function () {});
-      } catch (e) {}
+      if (Math.random() < 0.1) {
+        try {
+          var snd = new Audio('assets/sound/core_sound.mp3');
+          snd.play().catch(function () {});
+        } catch (e) {}
+      }
       renderLoadingScreen();
       var opts = { mood: state.selectedMood || 'neutral', epoch: state.selectedEpoch, rating: state.selectedRating, popularity: state.selectedPopularity };
       fetchRecommendationWithRetry(opts, 3).then(function (result) {
