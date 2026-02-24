@@ -1,10 +1,8 @@
 'use strict';
 
 const Groq = require('groq-sdk');
-const getDescriptionPrompt = require('./prompts/description-prompt');
 
 const MODEL = 'llama-3.1-8b-instant';
-const DESCRIPTION_SYSTEM_PROMPT = getDescriptionPrompt.DESCRIPTION_SYSTEM_PROMPT || getDescriptionPrompt;
 
 const SYSTEM_PROMPT = `Ты — кинокуратор-человек. Ты посмотрел тысячи фильмов, ведёшь блог о кино, тебе доверяют и спрашивают лично, что посмотреть. Ты думаешь не как "база результатов" или "топ-листы", а как друг, который даёт вдумчивые, контекстные рекомендации. Ты знаешь всё мировое кино: мейнстрим, фестивали, артхаус, нишевое.
 
@@ -121,28 +119,6 @@ module.exports = async (req, res) => {
     }
 
     const recommendation = toRecommendation(parsed);
-    try {
-      const buildDescriptionUserMessage = getDescriptionPrompt.buildDescriptionUserMessage || (function (opts) { return 'Сгенерируй описание для фильма: ' + (opts.title || '') + '. Контекст: ' + (opts.plotContext || ''); });
-      const descUserMsg = buildDescriptionUserMessage({
-        title: recommendation.title,
-        plotContext: recommendation.description || '',
-        genre: recommendation.genres || '',
-        mood: ''
-      });
-      const descCompletion = await client.chat.completions.create({
-        model: MODEL,
-        messages: [
-          { role: 'system', content: DESCRIPTION_SYSTEM_PROMPT },
-          { role: 'user', content: descUserMsg }
-        ],
-        temperature: 0.6,
-        max_tokens: 500
-      });
-      const descContent = descCompletion?.choices?.[0]?.message?.content;
-      if (typeof descContent === 'string' && descContent.trim()) {
-        recommendation.description = descContent.trim();
-      }
-    } catch (_) {}
     res.status(200).json({ recommendation });
   } catch (err) {
     console.error('GROQ ERROR:', err);
