@@ -905,7 +905,7 @@ function getRecommendationFromApi(options) {
         '<footer class="result-footer">' +
           '<button type="button" id="btn-another" class="btn-primary">' +
             '<img class="btn-icon" src="assets/icons/reload.svg" alt="" width="24" height="24">' +
-            '<span>Хочу другой</span>' +
+            '<span>Хочу другой фильм</span>' +
           '</button>' +
         '</footer>' +
       '</section>';
@@ -914,6 +914,10 @@ function getRecommendationFromApi(options) {
       renderMoodScreen();
     });
     app.querySelector('#btn-another').addEventListener('click', function () {
+      try {
+        var snd = new Audio('assets/sound/core_sound.mp3');
+        snd.play().catch(function () {});
+      } catch (e) {}
       renderLoadingScreen();
       var opts = { mood: state.selectedMood || 'neutral', epoch: state.selectedEpoch, rating: state.selectedRating, popularity: state.selectedPopularity };
       fetchRecommendationWithRetry(opts, 3).then(function (result) {
