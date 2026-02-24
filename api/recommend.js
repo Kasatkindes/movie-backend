@@ -2,7 +2,7 @@
 
 const Groq = require('groq-sdk');
 
-const MODEL = 'llama-3.3-70b-versatile';
+const MODEL = 'llama-3.1-8b-instant';
 
 const SYSTEM_PROMPT = `Ты — сервис подбора фильмов. Выдай ОДИН фильм строго в формате JSON.
 Если в запросе передан список "exclude" — КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО возвращать фильмы из этого списка. Дай один фильм под указанные фильтры, кроме списка exclude.

@@ -693,8 +693,7 @@ function getRecommendationFromApi(options) {
       }
       if (data && data.recommendation) {
         if (result.exhausted) {
-          var title = getRecommendationTitle(data.recommendation) || 'этот фильм';
-          renderNoMoreVariantsScreen(title);
+          renderNoMoreVariantsScreen(null, 'Попробуйте сменить фильтры');
           return;
         }
         renderMovieFromBackendResponse(data);
@@ -739,8 +738,10 @@ function getRecommendationFromApi(options) {
     app.querySelector('#btn-retry-later').addEventListener('click', renderMoodScreen);
   }
 
-  function renderNoMoreVariantsScreen(movieTitle) {
-    var message = 'Похоже, в этой категории «' + escapeHtml(movieTitle) + '» непобедим. Попробуйте чуть снизить рейтинг или сменить эпоху!';
+  function renderNoMoreVariantsScreen(movieTitle, overrideMessage) {
+    var message = overrideMessage
+      ? escapeHtml(overrideMessage)
+      : 'Похоже, в этой категории «' + escapeHtml(movieTitle || 'этот фильм') + '» непобедим. Попробуйте чуть снизить рейтинг или сменить эпоху!';
     app.innerHTML =
       '<section class="screen screen-movie screen-no-more">' +
         '<header class="result-header">' +
