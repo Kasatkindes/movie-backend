@@ -1,8 +1,10 @@
 'use strict';
 
 const Groq = require('groq-sdk');
+const getDescriptionPrompt = require('./prompts/description-prompt');
 
 const MODEL = 'llama-3.1-8b-instant';
+const DESCRIPTION_SYSTEM_PROMPT = getDescriptionPrompt.DESCRIPTION_SYSTEM_PROMPT || getDescriptionPrompt;
 
 const SYSTEM_PROMPT = `Ты — кинокуратор-человек. Ты посмотрел тысячи фильмов, ведёшь блог о кино, тебе доверяют и спрашивают лично, что посмотреть. Ты думаешь не как "база результатов" или "топ-листы", а как друг, который даёт вдумчивые, контекстные рекомендации. Ты знаешь всё мировое кино: мейнстрим, фестивали, артхаус, нишевое.
 
@@ -65,6 +67,19 @@ function toRecommendation(parsed) {
   };
 }
 
+function toRecommendationWithFixedMeta(descParsed, fixedMeta) {
+  return {
+    title: fixedMeta.title,
+    original_title: fixedMeta.original_title,
+    description: descParsed && descParsed.description != null ? String(descParsed.description) : (fixedMeta.description || ''),
+    rating: fixedMeta.rating,
+    year: fixedMeta.year,
+    country: fixedMeta.country,
+    genres: fixedMeta.genres,
+    ageLimit: fixedMeta.ageLimit
+  };
+}
+
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') {
@@ -118,7 +133,47 @@ module.exports = async (req, res) => {
       return;
     }
 
-    const recommendation = toRecommendation(parsed);
+    const fixedMeta = {
+      title: parsed && parsed.title != null ? String(parsed.title) : '',
+      original_title: parsed && (parsed.original_title != null || parsed.originalTitle != null) ? String(parsed.original_title || parsed.originalTitle) : '',
+      description: parsed && parsed.description != null ? String(parsed.description) : '',
+      rating: parsed && parsed.rating != null ? String(parsed.rating) : '',
+      year: (function () {
+        if (!parsed) return null;
+        if (typeof parsed.year === 'number' && !isNaN(parsed.year)) return parsed.year;
+        if (parsed.year == null) return null;
+        var y = parseInt(String(parsed.year), 10);
+        return isNaN(y) ? null : y;
+      })(),
+      country: parsed && parsed.country != null ? String(parsed.country) : '',
+      genres: parsed && parsed.genres != null ? String(parsed.genres) : '',
+      ageLimit: parsed && parsed.ageLimit != null ? String(parsed.ageLimit) : ''
+    };
+
+    let descParsed = { description: fixedMeta.description };
+    try {
+      const buildDescriptionUserMessage = getDescriptionPrompt.buildDescriptionUserMessage || (function (opts) { return 'Сгенерируй описание для фильма: ' + (opts.title || '') + '. Контекст: ' + (opts.plotContext || ''); });
+      const descUserMsg = buildDescriptionUserMessage({
+        title: fixedMeta.title,
+        plotContext: fixedMeta.description || ''
+      });
+      const descCompletion = await client.chat.completions.create({
+        model: MODEL,
+        messages: [
+          { role: 'system', content: DESCRIPTION_SYSTEM_PROMPT },
+          { role: 'user', content: descUserMsg }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.6,
+        max_tokens: 500
+      });
+      const descContent = descCompletion?.choices?.[0]?.message?.content;
+      if (typeof descContent === 'string' && descContent.trim()) {
+        descParsed = JSON.parse(descContent);
+      }
+    } catch (_) {}
+
+    const recommendation = toRecommendationWithFixedMeta(descParsed, fixedMeta);
     res.status(200).json({ recommendation });
   } catch (err) {
     console.error('GROQ ERROR:', err);
