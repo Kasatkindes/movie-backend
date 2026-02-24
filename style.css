@@ -838,6 +838,17 @@ body {
   padding: 0 0 16px 0;
 }
 
+.screen-no-more .no-more-message {
+  background: #242A34;
+  padding: 20px 16px;
+  border-radius: 16px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0 16px;
+  text-align: center;
+}
+
 .screen-movie .result-footer {
   position: fixed;
   bottom: 0;

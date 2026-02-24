@@ -337,7 +337,7 @@ function fetchMovieBackdrop(originalTitle, title, year) {
   });
 }
 
-/** Calls external backend. Returns { movie, reason } or null on failure. */
+/** Calls external backend. Returns { recommendation, is_unique } or null on failure. */
 function getRecommendationFromApi(options) {
   return fetch(API_RECOMMEND_URL, {
     method: 'POST',
@@ -346,7 +346,8 @@ function getRecommendationFromApi(options) {
       mood: options.mood || null,
       epoch: options.epoch || null,
       rating: options.rating || null,
-      exclude: options.exclude || []
+      exclude: options.exclude || [],
+      seed: options.seed != null ? options.seed : undefined
     })
   }).then(function (res) {
     if (!res.ok) return null;
@@ -418,6 +419,28 @@ function getRecommendationFromApi(options) {
 
   const VIEWED_MOVIES_KEY = 'movieAppViewedMovies';
   const SEEN_MOVIES_KEY = 'seenMovies';
+  const SHOWN_MOVIES_KEY = 'shownMovies';
+
+  function getShownMovies() {
+    try {
+      var raw = localStorage.getItem(SHOWN_MOVIES_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveShownMovie(idOrTitle) {
+    if (idOrTitle == null || String(idOrTitle).trim() === '') return;
+    try {
+      var shown = getShownMovies();
+      var key = String(idOrTitle).trim();
+      if (shown.indexOf(key) === -1) {
+        shown.push(key);
+        localStorage.setItem(SHOWN_MOVIES_KEY, JSON.stringify(shown));
+      }
+    } catch (e) {}
+  }
 
   function getSeenMovies() {
     try {
@@ -449,6 +472,8 @@ function getRecommendationFromApi(options) {
     maxAttempts = maxAttempts == null ? 5 : maxAttempts;
     var seen = getSeenMovies();
     var attempt = 0;
+    if (!opts.exclude) opts.exclude = getShownMovies();
+    if (opts.seed == null) opts.seed = Date.now() + '-' + Math.random();
 
     function tryOnce() {
       attempt += 1;
@@ -682,22 +707,56 @@ function getRecommendationFromApi(options) {
 
   function fadeOutLoadingThenShowMovie(data, opts) {
     var section = app.querySelector('.screen-loading');
+    function proceed() {
+      if (data && data.recommendation) {
+        var key = getMovieKey(data.recommendation);
+        var shown = getShownMovies();
+        var isDuplicate = key && shown.indexOf(key) !== -1;
+        if (data.is_unique === false || isDuplicate) {
+          var title = (data.recommendation.title != null ? String(data.recommendation.title) : '').trim() || 'этот фильм';
+          renderNoMoreVariantsScreen(title);
+          return;
+        }
+        renderMovieFromBackendResponse(data);
+      } else if (opts) {
+        renderMovieScreen(pickMovie(opts).movie);
+      } else {
+        renderMoodScreen();
+      }
+    }
     if (section) {
       section.classList.add('screen-loading--fade-out');
       if (loadingPhraseIntervalId) {
         clearInterval(loadingPhraseIntervalId);
         loadingPhraseIntervalId = null;
       }
-      setTimeout(function () {
-        if (data && data.recommendation) renderMovieFromBackendResponse(data);
-        else if (opts) renderMovieScreen(pickMovie(opts).movie);
-        else renderMoodScreen();
-      }, 400);
+      setTimeout(proceed, 400);
     } else {
-      if (data && data.recommendation) renderMovieFromBackendResponse(data);
-      else if (opts) renderMovieScreen(pickMovie(opts).movie);
-      else renderMoodScreen();
+      proceed();
     }
+  }
+
+  function renderNoMoreVariantsScreen(movieTitle) {
+    var message = 'Похоже, в этой категории «' + escapeHtml(movieTitle) + '» непобедим. Попробуйте чуть снизить рейтинг или сменить эпоху!';
+    app.innerHTML =
+      '<section class="screen screen-movie screen-no-more">' +
+        '<header class="result-header">' +
+          '<button type="button" id="btn-back-no-more" class="btn-back-inline">' +
+            '<img src="assets/icons/back.svg" alt="" width="24" height="24">' +
+          '</button>' +
+          '<h1 class="result-header-title">Выбрать настроение</h1>' +
+        '</header>' +
+        '<main class="result-content">' +
+          '<div class="no-more-message">' + message + '</div>' +
+        '</main>' +
+        '<footer class="result-footer">' +
+          '<button type="button" id="btn-try-other-filters" class="btn-primary">' +
+            '<span>Попробовать другие фильтры</span>' +
+          '</button>' +
+        '</footer>' +
+      '</section>';
+    app.querySelector('#btn-back-no-more').addEventListener('click', renderMoodScreen);
+    app.querySelector('#btn-try-other-filters').addEventListener('click', renderMoodScreen);
   }
 
   var minimalMovieStub = { title: '', year: '', countries: [], genres: [], ageRating: '', imdb: '', description: '' };
@@ -722,6 +781,7 @@ function getRecommendationFromApi(options) {
         if (imdbEl) imdbEl.textContent = '';
         if (metaEl) metaEl.textContent = '';
         saveSeenMovie(getMovieKey(rec));
+        saveShownMovie(getMovieKey(rec));
       } else {
         if (titleEl) titleEl.textContent = rec.title != null ? String(rec.title) : '';
         if (descEl) descEl.textContent = rec.description != null ? String(rec.description) : '';
@@ -781,6 +841,7 @@ function getRecommendationFromApi(options) {
           } catch (e) {}
         }
         saveSeenMovie(getMovieKey(rec));
+        saveShownMovie(getMovieKey(rec));
       }
     } catch (err) {
       console.error('renderMovieFromBackendResponse', err);
@@ -834,7 +895,7 @@ function getRecommendationFromApi(options) {
     });
     app.querySelector('#btn-another').addEventListener('click', function () {
       renderLoadingScreen();
-      var opts = { mood: state.selectedMood || 'neutral', epoch: state.selectedEpoch, rating: state.selectedRating, exclude: state.viewedMovies };
+      var opts = { mood: state.selectedMood || 'neutral', epoch: state.selectedEpoch, rating: state.selectedRating, exclude: getShownMovies() };
       fetchRecommendationWithRetry(opts, 5).then(function (result) {
         fadeOutLoadingThenShowMovie(result.data, result.opts);
       });
@@ -891,7 +952,7 @@ function getRecommendationFromApi(options) {
 
   function onFindMovieClick() {
     renderLoadingScreen();
-    var opts = { mood: state.selectedMood || 'neutral', epoch: state.selectedEpoch, rating: state.selectedRating, exclude: state.viewedMovies };
+    var opts = { mood: state.selectedMood || 'neutral', epoch: state.selectedEpoch, rating: state.selectedRating, exclude: getShownMovies() };
     fetchRecommendationWithRetry(opts, 5).then(function (result) {
       fadeOutLoadingThenShowMovie(result.data, result.opts);
     });
