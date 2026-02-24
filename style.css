@@ -16,7 +16,7 @@
   --chip-active-text: #0F1115;
 
   /* Primary button */
-  --btn-primary-bg: linear-gradient(135deg, #7B61FF 0%, #9B7BFF 100%);
+  --btn-primary-bg: linear-gradient(90deg, #733CF4 0%, #A769FF 100%);
 
   /* Bottom panel */
   --bottom-panel-bg: #3d2e5c;
@@ -126,11 +126,10 @@ body {
   opacity: 0.9;
 }
 
-/* Welcome CTA uses .btn-primary (same as "Хочу другой") — violet gradient, 24px radius, 16px 24px padding */
-.welcome-overlay__btn {
-  margin: 32px 0 0;
+.welcome-overlay .btn-primary {
+  margin-top: 32px;
   flex-shrink: 0;
-  font-family: 'Onest', sans-serif;
+  width: 100%;
 }
 
 /* ========== Screens (single screen at a time) ========== */
@@ -142,42 +141,94 @@ body {
   background: var(--bg);
 }
 
-/* ========== Mood screen: NO vertical scroll ========== */
+/* ========== Mood screen: single screen, character at top ========== */
 .screen-mood {
   overflow: hidden;
+}
+
+.main-screen-character {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  border-radius: 0 0 24px 24px;
+  transition: background 0.2s;
+}
+
+.main-screen-character .character-wrapper {
+  width: 160px;
+  height: 160px;
+  border-radius: 20px;
 }
 
 .screen-mood .screen-content {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
-  padding: 40px 16px 24px;
-  padding-bottom: 320px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 16px 16px 24px;
+  padding-bottom: 140px;
 }
 
-/* ========== Filters screen: NO vertical scroll ========== */
-.screen-filters {
-  overflow: hidden;
+/* ========== Inline filters (expand/collapse) ========== */
+.filters-trigger {
+  margin-bottom: 16px;
 }
 
-.screen-filters .screen-content {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  padding: 40px 16px 24px;
-  padding-bottom: 320px;
+.filters-inline {
+  display: none;
+  margin-bottom: 20px;
 }
 
-/* ========== Bottom panel: FIXED to viewport bottom (Mood + Filters) ========== */
-.screen-mood .bottom-panel,
-.screen-filters .bottom-panel {
+.filters-inline.filters-inline--open {
+  display: block;
+}
+
+.filters-inline .section-label {
+  margin-top: 20px;
+  margin-bottom: 12px;
+}
+
+.filters-inline .section-label:first-child {
+  margin-top: 0;
+}
+
+.chips-popularity-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -16px 20px;
+  padding: 0 16px;
+  scrollbar-width: none;
+}
+
+.chips-popularity-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.chips.chips-popularity-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  width: max-content;
+  margin: 0;
+}
+
+.chips.chips-popularity-row .chip {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+/* ========== Bottom panel: FIXED, CTA only ========== */
+.screen-mood .bottom-panel {
   position: fixed;
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
   max-width: 430px;
-  padding: 16px;
+  padding: 16px 16px 36px 16px;
   background: linear-gradient(
     180deg,
     rgba(22, 27, 34, 0) 0%,
@@ -185,6 +236,12 @@ body {
   );
   flex-shrink: 0;
   z-index: 10;
+}
+
+.screen-mood .bottom-panel__inner--cta-only {
+  background: transparent;
+  padding: 0;
+  gap: 0;
 }
 
 /* ========== Loading screen ========== */
@@ -535,54 +592,38 @@ body {
   border-radius: 24px;
 }
 
-/* Character card CTA: same on mood and filters (always #161B22) */
-.screen-mood .bottom-panel__inner .btn-primary,
-.screen-filters .bottom-panel__inner .btn-primary {
-  background: #161B22;
-  color: #FFFFFF;
-}
-
-.screen-mood .bottom-panel__inner .btn-primary:hover:not(:disabled),
-.screen-filters .bottom-panel__inner .btn-primary:hover:not(:disabled) {
-  opacity: 0.95;
-}
-
-.screen-mood .bottom-panel__inner .btn-primary:active:not(:disabled),
-.screen-filters .bottom-panel__inner .btn-primary:active:not(:disabled) {
-  opacity: 0.9;
-}
-
 .character {
   max-width: 100%;
   max-height: 100%;
   object-fit: contain;
 }
 
-/* ========== Primary button ========== */
+/* ========== Primary button (single source of truth) ========== */
 .btn-primary {
   width: 100%;
-  padding: 16px 24px;
+  height: 56px;
+  min-height: 56px;
+  padding: 0 24px;
   border: none;
-  border-radius: 24px;
+  border-radius: 28px;
   background: var(--btn-primary-bg);
-  color: var(--chip-text);
+  color: #ffffff;
   font-family: inherit;
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
   cursor: pointer;
-  transition: background 0.2s, opacity 0.2s;
 }
 
 .btn-primary:hover:not(:disabled) {
-  opacity: 0.95;
+  background: var(--btn-primary-bg);
 }
 
 .btn-primary:active:not(:disabled) {
-  opacity: 0.9;
+  background: var(--btn-primary-bg);
 }
 
 .btn-primary:disabled {
@@ -590,14 +631,9 @@ body {
   cursor: not-allowed;
 }
 
-.btn-primary__icon {
-  font-size: 14px;
-}
-
-.btn-icon {
-  width: 20px;
-  height: 20px;
-  margin-right: 10px;
+.btn-primary .btn-icon {
+  width: 24px;
+  height: 24px;
   display: block;
   flex-shrink: 0;
   filter: brightness(0) invert(1);
@@ -815,17 +851,3 @@ body {
   z-index: 10;
 }
 
-.screen-movie .result-footer .btn-primary {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-}
-
-.screen-movie .result-footer .btn-primary__icon {
-  width: 24px;
-  height: 24px;
-  display: block;
-  flex-shrink: 0;
-}

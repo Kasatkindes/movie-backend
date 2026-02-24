@@ -396,10 +396,11 @@ function getRecommendationFromApi(options) {
     { id: '8', label: '8+' }
   ];
 
-  const TEXTS = {
-    addParamsDefault: 'Добавить эпоху и рейтинг',
-    addParamsSelected: 'Изменить эпоху и рейтинг'
-  };
+  const POPULARITY = [
+    { id: 'gold', label: 'Золотой фонд' },
+    { id: 'solid', label: 'Крепкое кино' },
+    { id: 'underground', label: 'Андеграунд' }
+  ];
 
   const MOOD_BACKGROUND_MAP = {
     laugh: '#FFE396',
@@ -416,10 +417,64 @@ function getRecommendationFromApi(options) {
   const DEFAULT_MOOD_BACKGROUND = '#C2B8FF';
 
   const VIEWED_MOVIES_KEY = 'movieAppViewedMovies';
+  const SEEN_MOVIES_KEY = 'seenMovies';
+
+  function getSeenMovies() {
+    try {
+      var raw = sessionStorage.getItem(SEEN_MOVIES_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveSeenMovie(idOrTitle) {
+    if (idOrTitle == null || String(idOrTitle).trim() === '') return;
+    try {
+      var seen = getSeenMovies();
+      seen.push(String(idOrTitle).trim());
+      sessionStorage.setItem(SEEN_MOVIES_KEY, JSON.stringify(seen));
+    } catch (e) {}
+  }
+
+  function getMovieKey(rec) {
+    if (!rec) return null;
+    if (typeof rec === 'string') return String(rec).trim() || null;
+    if (rec.id != null && String(rec.id).trim() !== '') return String(rec.id).trim();
+    if (rec.title != null && String(rec.title).trim() !== '') return String(rec.title).trim();
+    return null;
+  }
+
+  function fetchRecommendationWithRetry(opts, maxAttempts) {
+    maxAttempts = maxAttempts == null ? 5 : maxAttempts;
+    var seen = getSeenMovies();
+    var attempt = 0;
+
+    function tryOnce() {
+      attempt += 1;
+      return getRecommendationFromApi(opts).then(function (data) {
+        if (!data || !data.recommendation) {
+          return { data: data, opts: opts };
+        }
+        var key = getMovieKey(data.recommendation);
+        if (!key || seen.indexOf(key) === -1) {
+          return { data: data, opts: opts };
+        }
+        if (attempt >= maxAttempts) {
+          return { data: data, opts: opts };
+        }
+        return tryOnce();
+      });
+    }
+    return tryOnce();
+  }
+
   const state = {
     selectedMood: null,
     selectedEpoch: null,
     selectedRating: null,
+    selectedPopularity: null,
+    filtersExpanded: false,
     viewedMovies: (function () {
       try {
         var raw = localStorage.getItem(VIEWED_MOVIES_KEY);
@@ -466,9 +521,6 @@ function getRecommendationFromApi(options) {
   }
 
   function renderMoodScreen() {
-    var hasParams = !!(state.selectedEpoch || state.selectedRating);
-    var addParamsText = hasParams ? TEXTS.addParamsSelected : TEXTS.addParamsDefault;
-    var addParamsIcon = hasParams ? 'assets/icons/edit.svg' : 'assets/icons/plus.svg';
     var characterSrc = getCharacterSrc(state.selectedMood);
 
     var moodChipsHtml = MOODS.map(function (m) {
@@ -478,57 +530,6 @@ function getRecommendationFromApi(options) {
         '<img class="chip__icon" src="assets/characters/' + chipIcon + '" alt="" width="20" height="20">' +
         '<span class="chip__label">' + m.label + '</span></button>';
     }).join('');
-
-    app.innerHTML =
-      '<section class="screen screen-mood">' +
-        '<div class="screen-content">' +
-          '<h1 class="title">Подберем фильм под настроение</h1>' +
-          '<div class="chips-mood-scroll" role="group" aria-label="Выберите настроение">' +
-            '<div class="chips chips-mood">' + moodChipsHtml + '</div>' +
-          '</div>' +
-          '<button type="button" id="btn-add-params" class="btn-secondary">' +
-            '<img class="btn-secondary__icon btn-secondary__icon--plus" src="' + addParamsIcon + '" alt="" width="24" height="24">' +
-            '<span id="btn-add-params-text" class="btn-secondary__text">' + addParamsText + '</span>' +
-          '</button>' +
-        '</div>' +
-        '<div class="bottom-panel">' +
-          '<div class="bottom-panel__inner">' +
-            '<div class="character-wrapper">' +
-              '<img id="character-img" class="character" src="' + characterSrc + '" alt="">' +
-            '</div>' +
-            '<button type="button" id="btn-find-movie" class="btn-primary">' +
-              '<img class="btn-icon" src="assets/icons/play.svg" alt="play"> Подобрать фильм' +
-            '</button>' +
-          '</div>' +
-        '</div>' +
-      '</section>';
-
-    var characterCard = app.querySelector('.screen-mood .bottom-panel__inner');
-    if (characterCard) {
-      if (!state.selectedMood) {
-        characterCard.style.backgroundColor = '#CDD9F3';
-      } else if (state.selectedMood === 'neutral') {
-        characterCard.style.backgroundColor = '';
-      } else {
-        characterCard.style.backgroundColor = MOOD_BACKGROUND_MAP[state.selectedMood] || '';
-      }
-    }
-
-    app.querySelector('.chips-mood').addEventListener('click', onMoodClick);
-    app.querySelector('#btn-add-params').addEventListener('click', function () {
-      renderFiltersScreen();
-    });
-    app.querySelector('#btn-find-movie').addEventListener('click', onFindMovieClick);
-
-    if (state.savedMoodScrollLeft != null) {
-      var scrollEl = app.querySelector('.chips-mood-scroll');
-      if (scrollEl) scrollEl.scrollLeft = state.savedMoodScrollLeft;
-      state.savedMoodScrollLeft = null;
-    }
-  }
-
-  function renderFiltersScreen() {
-    var characterSrc = getCharacterSrc(state.selectedMood);
 
     var epochChipsHtml = EPOCHS.map(function (e) {
       var active = state.selectedEpoch === e.id ? ' chip--active' : '';
@@ -540,49 +541,110 @@ function getRecommendationFromApi(options) {
       return '<button type="button" class="chip chip--filter chip-rating' + active + '" data-rating="' + r.id + '"><span class="chip__label">' + r.label + '</span></button>';
     }).join('');
 
+    var popularityChipsHtml = POPULARITY.map(function (p) {
+      var active = state.selectedPopularity === p.id ? ' chip--active' : '';
+      return '<button type="button" class="chip chip--filter chip-popularity' + active + '" data-popularity="' + p.id + '"><span class="chip__label">' + p.label + '</span></button>';
+    }).join('');
+
+    var filtersOpenClass = state.filtersExpanded ? ' filters-inline--open' : '';
+    var triggerBtnHtml =
+      '<button type="button" id="btn-toggle-filters" class="btn-secondary filters-trigger" aria-expanded="' + state.filtersExpanded + '">' +
+        '<img class="btn-secondary__icon" src="' + (state.filtersExpanded ? 'assets/icons/minus.svg' : 'assets/icons/plus.svg') + '" alt="" width="24" height="24">' +
+        '<span class="btn-secondary__text">' + (state.filtersExpanded ? 'Скрыть фильтры' : 'Дополнительные фильтры') + '</span>' +
+      '</button>';
+    var triggerSlotTopContent = state.filtersExpanded ? '' : triggerBtnHtml;
+    var triggerSlotBottomContent = state.filtersExpanded ? triggerBtnHtml : '';
+
     app.innerHTML =
-      '<section class="screen screen-filters">' +
-        '<div class="screen-content">' +
-          '<h1 class="title">Сузим рандом</h1>' +
-          '<p class="section-label">Эпоха</p>' +
-          '<div class="chips-epoch-scroll" role="group">' +
-            '<div class="chips chips-epoch-row">' + epochChipsHtml + '</div>' +
+      '<section class="screen screen-mood">' +
+        '<div class="main-screen-character" id="main-screen-character">' +
+          '<div class="character-wrapper">' +
+            '<img id="character-img" class="character" src="' + characterSrc + '" alt="">' +
           '</div>' +
-          '<p class="section-label">IMDb рейтинг</p>' +
-          '<div class="chips chips-rating" role="group">' + ratingChipsHtml + '</div>' +
-          '<button type="button" id="btn-change-mood" class="btn-back">' +
-            '<img src="assets/icons/back.svg" alt="" width="24" height="24"> Сменить настроение' +
-          '</button>' +
+        '</div>' +
+        '<div class="screen-content">' +
+          '<p class="section-label">Твоё настроение</p>' +
+          '<div class="chips-mood-scroll" role="group" aria-label="Выберите настроение">' +
+            '<div class="chips chips-mood">' + moodChipsHtml + '</div>' +
+          '</div>' +
+          '<div id="filters-trigger-slot-top" class="filters-trigger-slot">' + triggerSlotTopContent + '</div>' +
+          '<div id="filters-inline" class="filters-inline' + filtersOpenClass + '">' +
+            '<p class="section-label">Эпоха</p>' +
+            '<div class="chips-epoch-scroll" role="group">' +
+              '<div class="chips chips-epoch-row">' + epochChipsHtml + '</div>' +
+            '</div>' +
+            '<p class="section-label">IMDb рейтинг</p>' +
+            '<div class="chips chips-rating" role="group">' + ratingChipsHtml + '</div>' +
+            '<p class="section-label">Популярность</p>' +
+            '<div class="chips-popularity-scroll" role="group">' +
+              '<div class="chips chips-popularity-row">' + popularityChipsHtml + '</div>' +
+            '</div>' +
+            '<div id="filters-trigger-slot-bottom" class="filters-trigger-slot">' + triggerSlotBottomContent + '</div>' +
+          '</div>' +
         '</div>' +
         '<div class="bottom-panel">' +
-          '<div class="bottom-panel__inner">' +
-            '<div class="character-wrapper">' +
-              '<img id="character-img" class="character" src="' + characterSrc + '" alt="">' +
-            '</div>' +
+          '<div class="bottom-panel__inner bottom-panel__inner--cta-only">' +
             '<button type="button" id="btn-find-movie" class="btn-primary">' +
-              '<img class="btn-icon" src="assets/icons/play.svg" alt="play"> Подобрать фильм' +
+              '<img class="btn-icon" src="assets/icons/play.svg" alt="" width="24" height="24">' +
+              '<span>Подобрать фильм</span>' +
             '</button>' +
           '</div>' +
         '</div>' +
       '</section>';
 
-    var filtersCharacterCard = app.querySelector('.screen-filters .bottom-panel__inner');
-    if (filtersCharacterCard) {
+    var characterBlock = document.getElementById('main-screen-character');
+    if (characterBlock) {
       if (!state.selectedMood) {
-        filtersCharacterCard.style.backgroundColor = '#CDD9F3';
+        characterBlock.style.backgroundColor = '#CDD9F3';
       } else if (state.selectedMood === 'neutral') {
-        filtersCharacterCard.style.backgroundColor = '';
+        characterBlock.style.backgroundColor = '';
       } else {
-        filtersCharacterCard.style.backgroundColor = MOOD_BACKGROUND_MAP[state.selectedMood] || '';
+        characterBlock.style.backgroundColor = MOOD_BACKGROUND_MAP[state.selectedMood] || '';
       }
     }
 
-    app.querySelector('.chips-epoch-row').addEventListener('click', onEpochClick);
-    app.querySelector('.chips-rating').addEventListener('click', onRatingClick);
-    app.querySelector('#btn-change-mood').addEventListener('click', function () {
-      renderMoodScreen();
-    });
+    app.querySelector('.chips-mood').addEventListener('click', onMoodClick);
+    var triggerBtn = app.querySelector('#btn-toggle-filters');
+    if (triggerBtn) {
+      triggerBtn.addEventListener('click', function () {
+        state.filtersExpanded = !state.filtersExpanded;
+        var inline = document.getElementById('filters-inline');
+        var trigger = document.getElementById('btn-toggle-filters');
+        var slotTop = document.getElementById('filters-trigger-slot-top');
+        var slotBottom = document.getElementById('filters-trigger-slot-bottom');
+        if (inline) inline.classList.toggle('filters-inline--open', state.filtersExpanded);
+        if (trigger && slotTop && slotBottom) {
+          if (state.filtersExpanded) {
+            slotBottom.appendChild(trigger);
+          } else {
+            slotTop.appendChild(trigger);
+          }
+          trigger.setAttribute('aria-expanded', state.filtersExpanded);
+          var icon = trigger.querySelector('img');
+          var textSpan = trigger.querySelector('.btn-secondary__text');
+          if (icon) icon.src = state.filtersExpanded ? 'assets/icons/minus.svg' : 'assets/icons/plus.svg';
+          if (textSpan) textSpan.textContent = state.filtersExpanded ? 'Скрыть фильтры' : 'Дополнительные фильтры';
+        }
+      });
+    }
+    var filtersContainer = document.getElementById('filters-inline');
+    if (filtersContainer) {
+      filtersContainer.addEventListener('click', function (e) {
+        var epochChip = e.target.closest('.chip[data-epoch]');
+        var ratingChip = e.target.closest('.chip[data-rating]');
+        var popularityChip = e.target.closest('.chip[data-popularity]');
+        if (epochChip) { onEpochClick(e); return; }
+        if (ratingChip) { onRatingClick(e); return; }
+        if (popularityChip) { onPopularityClick(e); return; }
+      });
+    }
     app.querySelector('#btn-find-movie').addEventListener('click', onFindMovieClick);
+
+    if (state.savedMoodScrollLeft != null) {
+      var scrollEl = app.querySelector('.chips-mood-scroll');
+      if (scrollEl) scrollEl.scrollLeft = state.savedMoodScrollLeft;
+      state.savedMoodScrollLeft = null;
+    }
   }
 
   function renderLoadingScreen() {
@@ -659,6 +721,7 @@ function getRecommendationFromApi(options) {
         if (descEl) descEl.textContent = rec;
         if (imdbEl) imdbEl.textContent = '';
         if (metaEl) metaEl.textContent = '';
+        saveSeenMovie(getMovieKey(rec));
       } else {
         if (titleEl) titleEl.textContent = rec.title != null ? String(rec.title) : '';
         if (descEl) descEl.textContent = rec.description != null ? String(rec.description) : '';
@@ -717,6 +780,7 @@ function getRecommendationFromApi(options) {
             localStorage.setItem(VIEWED_MOVIES_KEY, JSON.stringify(state.viewedMovies));
           } catch (e) {}
         }
+        saveSeenMovie(getMovieKey(rec));
       }
     } catch (err) {
       console.error('renderMovieFromBackendResponse', err);
@@ -759,8 +823,8 @@ function getRecommendationFromApi(options) {
         '</main>' +
         '<footer class="result-footer">' +
           '<button type="button" id="btn-another" class="btn-primary">' +
-            '<img class="btn-primary__icon" src="assets/icons/reload.svg" alt="" width="24" height="24">' +
-            ' Хочу другой' +
+            '<img class="btn-icon" src="assets/icons/reload.svg" alt="" width="24" height="24">' +
+            '<span>Хочу другой</span>' +
           '</button>' +
         '</footer>' +
       '</section>';
@@ -771,8 +835,8 @@ function getRecommendationFromApi(options) {
     app.querySelector('#btn-another').addEventListener('click', function () {
       renderLoadingScreen();
       var opts = { mood: state.selectedMood || 'neutral', epoch: state.selectedEpoch, rating: state.selectedRating, exclude: state.viewedMovies };
-      getRecommendationFromApi(opts).then(function (data) {
-        fadeOutLoadingThenShowMovie(data, opts);
+      fetchRecommendationWithRetry(opts, 5).then(function (result) {
+        fadeOutLoadingThenShowMovie(result.data, result.opts);
       });
     });
   }
@@ -791,7 +855,12 @@ function getRecommendationFromApi(options) {
     if (!chip) return;
     var epoch = chip.dataset.epoch;
     state.selectedEpoch = state.selectedEpoch === epoch ? null : epoch;
-    renderFiltersScreen();
+    var container = app.querySelector('.chips-epoch-row');
+    if (container) {
+      container.querySelectorAll('.chip-epoch').forEach(function (c) {
+        c.classList.toggle('chip--active', c.dataset.epoch === state.selectedEpoch);
+      });
+    }
   }
 
   function onRatingClick(e) {
@@ -799,14 +868,32 @@ function getRecommendationFromApi(options) {
     if (!chip) return;
     var rating = chip.dataset.rating;
     state.selectedRating = state.selectedRating === rating ? null : rating;
-    renderFiltersScreen();
+    var container = app.querySelector('.chips-rating');
+    if (container) {
+      container.querySelectorAll('.chip-rating').forEach(function (c) {
+        c.classList.toggle('chip--active', c.dataset.rating === state.selectedRating);
+      });
+    }
+  }
+
+  function onPopularityClick(e) {
+    var chip = e.target.closest('.chip[data-popularity]');
+    if (!chip) return;
+    var id = chip.dataset.popularity;
+    state.selectedPopularity = state.selectedPopularity === id ? null : id;
+    var container = app.querySelector('.chips-popularity-row');
+    if (container) {
+      container.querySelectorAll('.chip-popularity').forEach(function (c) {
+        c.classList.toggle('chip--active', c.dataset.popularity === state.selectedPopularity);
+      });
+    }
   }
 
   function onFindMovieClick() {
     renderLoadingScreen();
     var opts = { mood: state.selectedMood || 'neutral', epoch: state.selectedEpoch, rating: state.selectedRating, exclude: state.viewedMovies };
-    getRecommendationFromApi(opts).then(function (data) {
-      fadeOutLoadingThenShowMovie(data, opts);
+    fetchRecommendationWithRetry(opts, 5).then(function (result) {
+      fadeOutLoadingThenShowMovie(result.data, result.opts);
     });
   }
 
