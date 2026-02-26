@@ -870,6 +870,7 @@ function getRecommendationFromApi(options) {
 
   /** Shared handler for "Поменяй": loading screen then fetch then show result (or fallbacks). */
   function onAnotherMovieClick() {
+    if (window.plausible) plausible('change_movie_click');
     if (Math.random() < 0.1) {
       try {
         var snd = new Audio('assets/sound/core_sound.mp3');
@@ -955,6 +956,7 @@ function getRecommendationFromApi(options) {
           removeLikedMovie(title);
         } else {
           var added = addLikedMovie(title);
+          if (added && window.plausible) plausible('add_to_favorites');
           if (added) {
             try {
               if (!localStorage.getItem(HAS_SEEN_LIKE_TOOLTIP_KEY)) {
@@ -967,6 +969,7 @@ function getRecommendationFromApi(options) {
         updateFavoriteButtonState(btnFavorite, title);
       });
     }
+    if (window.plausible) plausible('movie_loaded');
   }
 
   /**
@@ -1093,6 +1096,7 @@ function getRecommendationFromApi(options) {
   }
 
   function onFindMovieClick() {
+    if (window.plausible) plausible('generate_click');
     renderLoadingScreen();
     var opts = {
       mood: state.selectedMood || 'neutral',
