@@ -1,9 +1,10 @@
 'use strict';
 
 function sendFeedbackToGoogle(rating, text) {
+  console.log("SENDING", rating, text);
+
   fetch("https://docs.google.com/forms/d/e/1FAIpQLSdKzsSIUqjkuYpxOP1CjllnDerG9kMW7YYBNXiF-WG4cQhKNQ/formResponse", {
     method: "POST",
-    mode: "no-cors",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded"
     },
@@ -11,7 +12,8 @@ function sendFeedbackToGoogle(rating, text) {
       "entry.1289232695": rating,
       "entry.53559483": text || ""
     })
-  });
+  }).then(function (res) { console.log("STATUS", res.status); })
+    .catch(function (err) { console.error(err); });
 }
 
 /** @typedef {{ id: string, title: string, originalTitle: string, imdb: number, ageRating: string, year: number, countries: string[], genres: string[], moods: string[], era: string, poster: { type: string, src: string|null, aspectRatio: string }, description: string }} Movie */
