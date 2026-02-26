@@ -280,13 +280,13 @@ function titlesMatch(a, b) {
 }
 
 /**
- * Performs one TMDB search and returns best image URL and matched film title (by popularity).
- * @param {string} query - search query (e.g. original title or Russian title)
+ * Performs one TMDB search and returns best image URL, matched title and overview (by popularity).
+ * @param {string} query - search query (e.g. original title)
  * @param {string|number} year
- * @returns {Promise<{ url: string, matchedTitle: string }>}
+ * @returns {Promise<{ url: string, matchedTitle: string, overview: string }>}
  */
 function fetchImageFromTmdbSearch(query, year) {
-  var fallback = { url: FALLBACK_BACKDROP_URL, matchedTitle: '' };
+  var fallback = { url: FALLBACK_BACKDROP_URL, matchedTitle: '', overview: '' };
   if (!query || !String(query).trim()) return Promise.resolve(fallback);
   var q = encodeURIComponent(String(query).trim());
   var yearParam = year != null && year !== '' ? '&year=' + encodeURIComponent(String(year)) : '';
@@ -307,7 +307,10 @@ function fetchImageFromTmdbSearch(query, year) {
           var imageUrl = null;
           if (item.backdrop_path) imageUrl = TMDB_BACKDROP_BASE + item.backdrop_path;
           else if (item.poster_path) imageUrl = TMDB_POSTER_BASE + item.poster_path;
-          if (imageUrl) return { url: imageUrl, matchedTitle: item.title || '' };
+          if (imageUrl) {
+            var overview = (item.overview && String(item.overview).trim()) ? String(item.overview).trim() : '';
+            return { url: imageUrl, matchedTitle: item.title || '', overview: overview };
+          }
         }
         return fallback;
       } catch (e) {
@@ -320,14 +323,14 @@ function fetchImageFromTmdbSearch(query, year) {
 }
 
 /**
- * Fetches movie backdrop (or poster fallback) from TMDB. Search ONLY by original_title + year. No localized title.
- * Returns { url, matchedTitle }.
+ * Fetches movie backdrop, title and overview from TMDB. Search ONLY by original_title + year.
+ * Returns { url, matchedTitle, overview }.
  * @param {string} originalTitle - English/original title (for TMDB)
  * @param {string|number} year
- * @returns {Promise<{ url: string, matchedTitle: string }>}
+ * @returns {Promise<{ url: string, matchedTitle: string, overview: string }>}
  */
 function fetchMovieBackdrop(originalTitle, year) {
-  var fallback = { url: FALLBACK_BACKDROP_URL, matchedTitle: '' };
+  var fallback = { url: FALLBACK_BACKDROP_URL, matchedTitle: '', overview: '' };
   if (!originalTitle || String(originalTitle).trim() === '') return Promise.resolve(fallback);
   return fetchImageFromTmdbSearch(String(originalTitle).trim(), year);
 }
@@ -882,7 +885,7 @@ function getRecommendationFromApi(options) {
   function renderMovieCardFinal(finalData) {
     var displayTitle = (finalData.title && String(finalData.title).trim()) ? String(finalData.title).trim() : 'Название недоступно';
     var desc = (finalData.description && String(finalData.description).trim()) ? String(finalData.description).trim() : '';
-    if (!desc || desc.toLowerCase() === 'short description.') desc = 'Описание временно недоступно.';
+    if (!desc) desc = 'Описание отсутствует.';
     var posterHtml = (finalData.posterUrl && finalData.posterUrl !== FALLBACK_BACKDROP_URL)
       ? '<img src="' + escapeHtml(finalData.posterUrl) + '" alt="" class="result-backdrop__img loaded">'
       : '<div class="result-backdrop__placeholder">🎬</div>';
@@ -983,9 +986,10 @@ function getRecommendationFromApi(options) {
       fetchMovieBackdrop(rec.original_title, rec.year).then(function (result) {
         var finalTitle = (result.matchedTitle && String(result.matchedTitle).trim()) ? result.matchedTitle.trim() : null;
         var finalPosterUrl = (result.url && result.url !== FALLBACK_BACKDROP_URL) ? result.url : null;
-        renderMovieCardFinal({ title: finalTitle, posterUrl: finalPosterUrl, description: rec.description, rec: rec });
+        var description = (result.overview && String(result.overview).trim()) ? result.overview.trim() : 'Описание отсутствует.';
+        renderMovieCardFinal({ title: finalTitle, posterUrl: finalPosterUrl, description: description, rec: rec });
       }).catch(function () {
-        renderMovieCardFinal({ title: null, posterUrl: null, description: rec.description || 'Описание временно недоступно.', rec: rec });
+        renderMovieCardFinal({ title: null, posterUrl: null, description: 'Описание отсутствует.', rec: rec });
       });
     } catch (err) {
       console.error('renderMovieFromBackendResponse', err);

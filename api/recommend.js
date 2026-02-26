@@ -130,17 +130,6 @@ MOOD: romance (Романтика)
 
 ---
 
-Правила описания:
-- Описание должно быть на РУССКОМ языке.
-- 3–4 полноценных предложения.
-- Атмосферное, живое, разговорное.
-- Передавать ощущение и послевкусие фильма.
-- НЕ пересказывать сюжет подробно.
-- НЕ использовать название фильма в тексте.
-- НЕ использовать шаблоны типа "Short description."
-- НЕ использовать заглушки.
-- Описание ОБЯЗАТЕЛЬНО должно быть осмысленным текстом.
-
 Популярность: gold — только иконические фильмы; middle — крепкое кино не из топ-250; underground — нишевое, фестивальное. Если не указано — предпочитай middle/underground.
 
 ---
@@ -158,14 +147,13 @@ CRITICAL TITLE CONTRACT (ОБЯЗАТЕЛЕН):
 Формат ответа (STRICT):
 Верни РОВНО 5 РАЗНЫХ фильмов. Только реальные фильмы (IMDb/TMDB). Строго один JSON без markdown и текста до/после.
 Фильмы в массиве НЕ должны повторяться. Разнообразие по жанрам/годам приветствуется.
-Поле "title" ЗАПРЕЩЕНО. Только original_title (английское каноническое название).
+Поле "title" ЗАПРЕЩЕНО. Только original_title (английское каноническое название). Описания НЕ генерировать — они берутся из TMDB.
 
 {
   "movies": [
     {
       "original_title": "Exact English canonical movie title",
       "year": 2010,
-      "description": "Атмосферное описание на русском языке, 3–4 предложения.",
       "rating": "7.5",
       "country": "USA",
       "genres": "Drama",
@@ -174,7 +162,7 @@ CRITICAL TITLE CONTRACT (ОБЯЗАТЕЛЕН):
   ]
 }
 
-- movies: массив из ровно 5 объектов. У каждого: original_title, year, description, rating, country, genres, ageLimit.
+- movies: массив из ровно 5 объектов. У каждого: original_title, year, rating, country, genres, ageLimit. Без description.
 - original_title: ТОЛЬКО точное каноническое название на английском (как в IMDb/TMDB). Никаких переводов, выдумок.
 - Список exclude — ЗАПРЕЩЕНО возвращать эти фильмы в массиве.`;
 
@@ -186,12 +174,10 @@ function setCors(res) {
 
 function toRecommendation(parsed) {
   var originalTitle = parsed && (parsed.original_title != null || parsed.originalTitle != null) ? String(parsed.original_title || parsed.originalTitle).trim() : '';
-  var desc = parsed && parsed.description != null ? String(parsed.description).trim() : '';
-  if (!desc || desc.toLowerCase() === 'short description.') desc = 'Описание временно недоступно.';
   return {
     title: originalTitle,
     original_title: originalTitle,
-    description: desc,
+    description: '',
     rating: parsed && parsed.rating != null ? String(parsed.rating) : '',
     year: (function () {
       if (!parsed) return null;
@@ -206,11 +192,11 @@ function toRecommendation(parsed) {
   };
 }
 
-/** Fallback when both LLM responses were duplicates. Same shape as toRecommendation output. Only English original_title. */
+/** Fallback when both LLM responses were duplicates. Same shape as toRecommendation output. Only English original_title. Description from TMDB. */
 var FALLBACK_RECOMMENDATION = {
   title: 'The Shawshank Redemption',
   original_title: 'The Shawshank Redemption',
-  description: 'A banker sentenced to life in prison finds friendship and keeps hope alive.',
+  description: '',
   rating: '9.3',
   year: 1994,
   country: 'USA',
