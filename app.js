@@ -320,22 +320,16 @@ function fetchImageFromTmdbSearch(query, year) {
 }
 
 /**
- * Fetches movie backdrop (or poster fallback) from TMDB. Tries original_title + year first, then title + year.
- * Returns { url, matchedTitle }. If TMDB matched title differs strongly from recommendation, caller should use placeholder.
+ * Fetches movie backdrop (or poster fallback) from TMDB. Search ONLY by original_title + year. No localized title.
+ * Returns { url, matchedTitle }.
  * @param {string} originalTitle - English/original title (for TMDB)
- * @param {string} title - Russian or display title (fallback search)
  * @param {string|number} year
  * @returns {Promise<{ url: string, matchedTitle: string }>}
  */
-function fetchMovieBackdrop(originalTitle, title, year) {
-  var hasOriginal = originalTitle != null && String(originalTitle).trim() !== '';
-  var hasTitle = title != null && String(title).trim() !== '';
+function fetchMovieBackdrop(originalTitle, year) {
   var fallback = { url: FALLBACK_BACKDROP_URL, matchedTitle: '' };
-  if (!hasOriginal && !hasTitle) return Promise.resolve(fallback);
-  return fetchImageFromTmdbSearch(hasOriginal ? String(originalTitle).trim() : '', year).then(function (result) {
-    if (result.url !== FALLBACK_BACKDROP_URL) return result;
-    return fetchImageFromTmdbSearch(hasTitle ? String(title).trim() : '', year);
-  });
+  if (!originalTitle || String(originalTitle).trim() === '') return Promise.resolve(fallback);
+  return fetchImageFromTmdbSearch(String(originalTitle).trim(), year);
 }
 
 /** Calls external backend. Returns { recommendation } or null on failure; on 5xx returns { _error: true, status, message }. */
@@ -491,15 +485,19 @@ function getRecommendationFromApi(options) {
   /** Глобальная история показанных за сессию фильмов (по title). */
   var sessionHistory = [];
 
+  /** Only original_title is used. No fallback to title or localized names. */
   function getRecommendationTitle(rec) {
     if (!rec) return '';
     if (typeof rec === 'string') return String(rec).trim();
-    return (rec.title != null ? String(rec.title) : '').trim();
+    var ot = rec.original_title != null ? String(rec.original_title) : (rec.originalTitle != null ? String(rec.originalTitle) : '');
+    return ot.trim();
   }
 
   function getMovieKey(rec) {
     if (!rec) return null;
     if (typeof rec === 'string') return String(rec).trim() || null;
+    if (rec.original_title != null && String(rec.original_title).trim() !== '') return String(rec.original_title).trim();
+    if (rec.originalTitle != null && String(rec.originalTitle).trim() !== '') return String(rec.originalTitle).trim();
     if (rec.id != null && String(rec.id).trim() !== '') return String(rec.id).trim();
     if (rec.title != null && String(rec.title).trim() !== '') return String(rec.title).trim();
     return null;
@@ -852,7 +850,7 @@ function getRecommendationFromApi(options) {
         var t = getRecommendationTitle(rec);
         if (t && sessionHistory.indexOf(t) === -1) sessionHistory.push(t);
       } else {
-        if (titleEl) titleEl.textContent = rec.title != null ? String(rec.title) : '';
+        if (titleEl) titleEl.textContent = (rec.original_title != null ? String(rec.original_title) : '').trim() || '';
         if (descEl) descEl.textContent = rec.description != null ? String(rec.description) : '';
         if (imdbEl) {
           var ratingSpan = imdbEl.querySelector('.imdb-badge__rating');
@@ -870,24 +868,28 @@ function getRecommendationFromApi(options) {
         var recMetaRest = [recAge, rec.year, recCountry, recGenres].filter(Boolean).join(' • ');
         if (metaEl) metaEl.textContent = recMetaRest;
         var btnFavorite = document.getElementById('btn-favorite');
-        updateFavoriteButtonState(btnFavorite, rec.title != null ? String(rec.title) : '');
+        if (titleEl) titleEl.textContent = (rec.original_title != null ? String(rec.original_title) : '').trim() || '';
+        if (!(rec.original_title != null && String(rec.original_title).trim())) {
+          if (titleEl) titleEl.textContent = '';
+          if (descEl) descEl.textContent = 'Нет данных о фильме.';
+        } else {
+        updateFavoriteButtonState(btnFavorite, rec.original_title != null ? String(rec.original_title) : '');
         if (backdropEl) {
-          var backdropTitle = (rec.title != null && String(rec.title).trim()) ? String(rec.title).trim() : '';
-          var backdropOriginalTitle = (rec.original_title != null && String(rec.original_title).trim()) ? String(rec.original_title).trim() : '';
+          var displayTitle = (rec.original_title != null && String(rec.original_title).trim()) ? String(rec.original_title).trim() : '';
           backdropEl.innerHTML = '';
           var skeleton = document.createElement('div');
           skeleton.className = 'poster-skeleton';
           backdropEl.appendChild(skeleton);
-          (function (el, originalTitle, title, recYear, recommendation) {
-            fetchMovieBackdrop(originalTitle, title, recYear).then(function (result) {
+          (function (el, originalTitle, recYear, displayName) {
+            fetchMovieBackdrop(originalTitle, recYear).then(function (result) {
               if (!el.parentNode) return;
               var urlToUse = result.url;
-              if (result.matchedTitle && !titlesMatch(recommendation.title, result.matchedTitle) && !titlesMatch(recommendation.original_title, result.matchedTitle)) {
-                console.error('TMDB title mismatch: got "' + result.matchedTitle + '" for recommendation "' + (recommendation.title || '') + '" / "' + (recommendation.original_title || '') + '". Showing placeholder.');
+              if (result.matchedTitle && !titlesMatch(displayName, result.matchedTitle)) {
+                console.error('TMDB title mismatch: got "' + result.matchedTitle + '" for recommendation "' + displayName + '". Showing placeholder.');
                 urlToUse = FALLBACK_BACKDROP_URL;
               }
               var img = new Image();
-              img.alt = title || '';
+              img.alt = displayName || '';
               img.className = 'result-backdrop__img';
               img.onload = function () {
                 if (!el.parentNode) return;
@@ -900,7 +902,7 @@ function getRecommendationFromApi(options) {
                 el.innerHTML = '';
                 var fallbackEl = document.createElement('div');
                 fallbackEl.className = 'result-backdrop__placeholder';
-                fallbackEl.textContent = title || '🎬';
+                fallbackEl.textContent = displayName || '🎬';
                 el.appendChild(fallbackEl);
               };
               img.src = urlToUse;
@@ -909,13 +911,13 @@ function getRecommendationFromApi(options) {
               el.innerHTML = '';
               var fb = document.createElement('div');
               fb.className = 'result-backdrop__placeholder';
-              fb.textContent = title || '🎬';
+              fb.textContent = displayName || '🎬';
               el.appendChild(fb);
             });
-          })(backdropEl, backdropOriginalTitle, backdropTitle, rec.year, rec);
+          })(backdropEl, displayTitle, rec.year, displayTitle);
         }
-        if (rec.title != null && String(rec.title).trim()) {
-          state.viewedMovies.push(String(rec.title).trim());
+        if (rec.original_title != null && String(rec.original_title).trim()) {
+          state.viewedMovies.push(String(rec.original_title).trim());
           try {
             localStorage.setItem(VIEWED_MOVIES_KEY, JSON.stringify(state.viewedMovies));
           } catch (e) {}

@@ -130,7 +130,7 @@ MOOD: romance (Романтика)
 ---
 
 CRITICAL TITLE CONTRACT (ОБЯЗАТЕЛЕН):
-1. The model MUST return ONLY the original English title of the movie in the field original_title.
+1. The model MUST return ONLY the original English title in the field original_title. There is NO "title" field — do not output localized or translated titles.
 2. The model MUST NOT translate movie titles into any other language.
 3. The model MUST NOT invent, approximate, localize or creatively reinterpret titles.
 4. If the model is not confident in the exact original title, it MUST choose a different movie.
@@ -141,8 +141,18 @@ CRITICAL TITLE CONTRACT (ОБЯЗАТЕЛЕН):
 
 Формат ответа (STRICT):
 Верни ровно ОДИН фильм. Только реальные фильмы (IMDb/TMDB). Строго один JSON без markdown и текста до/после.
-{"title":"Название на русском","original_title":"Exact English canonical title","description":"Краткое описание.","rating":"7.5","year":2010,"country":"США","genres":"Драма","ageLimit":"16+"}
-Поля: title, original_title, description, rating, year, country, genres, ageLimit.
+Поля ТОЛЬКО: original_title, year, description, rating, country, genres, ageLimit. Поле "title" ЗАПРЕЩЕНО.
+
+{
+  "original_title": "Exact English canonical movie title",
+  "year": 2010,
+  "description": "Short description.",
+  "rating": "7.5",
+  "country": "USA",
+  "genres": "Drama",
+  "ageLimit": "16+"
+}
+
 - original_title: ТОЛЬКО точное каноническое название на английском (как в IMDb/TMDB). Никаких переводов, выдумок, вариантов.
 - Список exclude — ЗАПРЕЩЕНО возвращать эти фильмы.`;
 
@@ -153,9 +163,10 @@ function setCors(res) {
 }
 
 function toRecommendation(parsed) {
+  var originalTitle = parsed && (parsed.original_title != null || parsed.originalTitle != null) ? String(parsed.original_title || parsed.originalTitle).trim() : '';
   return {
-    title: parsed && parsed.title != null ? String(parsed.title) : '',
-    original_title: parsed && (parsed.original_title != null || parsed.originalTitle != null) ? String(parsed.original_title || parsed.originalTitle) : '',
+    title: originalTitle,
+    original_title: originalTitle,
     description: parsed && parsed.description != null ? String(parsed.description) : '',
     rating: parsed && parsed.rating != null ? String(parsed.rating) : '',
     year: (function () {
@@ -171,15 +182,15 @@ function toRecommendation(parsed) {
   };
 }
 
-/** Fallback when both LLM responses were duplicates. Same shape as toRecommendation output. */
+/** Fallback when both LLM responses were duplicates. Same shape as toRecommendation output. Only English original_title. */
 var FALLBACK_RECOMMENDATION = {
-  title: 'Побег из Шоушенка',
+  title: 'The Shawshank Redemption',
   original_title: 'The Shawshank Redemption',
-  description: 'Банкир Энди Дюфрейн приговорён к пожизненному заключению. В тюрьме он находит друга и сохраняет надежду.',
+  description: 'A banker sentenced to life in prison finds friendship and keeps hope alive.',
   rating: '9.3',
   year: 1994,
-  country: 'США',
-  genres: 'Драма',
+  country: 'USA',
+  genres: 'Drama',
   ageLimit: '16+'
 };
 
@@ -255,11 +266,10 @@ module.exports = async (req, res) => {
       });
     }
 
+    /** Only original_title is used for session history and validation. No fallback to title or localized names. */
     function titleFromParsed(parsed) {
       if (!parsed) return '';
-      var ot = parsed.original_title != null || parsed.originalTitle != null ? String(parsed.original_title || parsed.originalTitle).trim() : '';
-      var t = parsed.title != null ? String(parsed.title).trim() : '';
-      return ot || t || '';
+      return (parsed.original_title != null || parsed.originalTitle != null) ? String(parsed.original_title || parsed.originalTitle).trim() : '';
     }
 
     /** First request: no exclude. */
