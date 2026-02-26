@@ -551,6 +551,7 @@ function getRecommendationFromApi(options) {
   };
 
   var loadingPhraseIntervalId = null;
+  var generateCounter = 0;
 
   var LOADING_PHRASES = [
     'Просматриваем каталог…',
@@ -868,9 +869,80 @@ function getRecommendationFromApi(options) {
     app.querySelector('#btn-try-other-filters').addEventListener('click', renderMoodScreen);
   }
 
+  function sendFeedbackToGoogle(rating, text) {
+    fetch('https://docs.google.com/forms/d/e/1FAIpQLSdKzsSIUqjkuYpxOP1CjllnDerG9kMW7YYBNXiF-WG4cQhKNQ/formResponse', {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: new URLSearchParams({
+        'entry.1289232695': String(rating),
+        'entry.53559483': text || ''
+      })
+    });
+  }
+
+  function openFeedbackModal() {
+    var selectedRating = null;
+    var overlay = document.createElement('div');
+    overlay.className = 'feedback-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-label', 'Обратная связь');
+    overlay.innerHTML = '<div class="feedback-modal"><button type="button" class="feedback-close-btn" aria-label="Закрыть">&times;</button><h3 class="feedback-title">Как тебе подборка?</h3><div class="feedback-stars"></div><textarea class="feedback-textarea" placeholder="Комментарий (необязательно)" rows="3"></textarea><button type="button" class="btn-primary feedback-submit-btn">Отправить</button></div>';
+    var modal = overlay.querySelector('.feedback-modal');
+    var starsContainer = overlay.querySelector('.feedback-stars');
+    var textareaEl = overlay.querySelector('.feedback-textarea');
+    var submitBtn = overlay.querySelector('.feedback-submit-btn');
+    var closeBtn = overlay.querySelector('.feedback-close-btn');
+    for (var i = 0; i < 5; i++) {
+      var star = document.createElement('span');
+      star.className = 'feedback-star';
+      star.textContent = '★';
+      star.dataset.index = String(i);
+      star.addEventListener('click', function () {
+        selectedRating = parseInt(this.dataset.index, 10) + 1;
+        starsContainer.querySelectorAll('.feedback-star').forEach(function (s, idx) {
+          s.classList.toggle('active', idx < selectedRating);
+        });
+      });
+      starsContainer.appendChild(star);
+    }
+    closeBtn.addEventListener('click', function () {
+      sessionStorage.setItem('feedback_closed', 'true');
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    });
+    submitBtn.addEventListener('click', function () {
+      if (selectedRating == null) return;
+      if (window.plausible) {
+        plausible('feedback_submitted', {
+          props: {
+            rating: selectedRating,
+            movies_seen: generateCounter
+          }
+        });
+      }
+      sendFeedbackToGoogle(selectedRating, textareaEl ? textareaEl.value : '');
+      sessionStorage.setItem('feedback_submitted', 'true');
+      modal.innerHTML = '<p class="feedback-thanks">Спасибо, что оценили, это важно для развития приложения ❤️</p>';
+    });
+    document.body.appendChild(overlay);
+  }
+
   /** Shared handler for "Поменяй": loading screen then fetch then show result (or fallbacks). */
   function onAnotherMovieClick() {
-    if (window.plausible) plausible('change_movie_click');
+    generateCounter++;
+    if (generateCounter === 5 && sessionStorage.getItem('feedback_closed') !== 'true' && sessionStorage.getItem('feedback_submitted') !== 'true') {
+      openFeedbackModal();
+    }
+    if (window.plausible) {
+      plausible('change_movie_click', {
+        props: {
+          mood: state.selectedMood || 'none',
+          epoch: state.selectedEpoch || 'none'
+        }
+      });
+    }
     if (Math.random() < 0.1) {
       try {
         var snd = new Audio('assets/sound/core_sound.mp3');
@@ -956,7 +1028,13 @@ function getRecommendationFromApi(options) {
           removeLikedMovie(title);
         } else {
           var added = addLikedMovie(title);
-          if (added && window.plausible) plausible('add_to_favorites');
+          if (added && window.plausible) {
+            plausible('add_to_favorites', {
+              props: {
+                title: title || 'unknown'
+              }
+            });
+          }
           if (added) {
             try {
               if (!localStorage.getItem(HAS_SEEN_LIKE_TOOLTIP_KEY)) {
@@ -969,7 +1047,14 @@ function getRecommendationFromApi(options) {
         updateFavoriteButtonState(btnFavorite, title);
       });
     }
-    if (window.plausible) plausible('movie_loaded');
+    if (window.plausible) {
+      plausible('movie_loaded', {
+        props: {
+          title: displayTitle || 'unknown',
+          rating: ratingVal || 'unknown'
+        }
+      });
+    }
   }
 
   /**
@@ -1096,7 +1181,20 @@ function getRecommendationFromApi(options) {
   }
 
   function onFindMovieClick() {
-    if (window.plausible) plausible('generate_click');
+    generateCounter++;
+    if (generateCounter === 5 && sessionStorage.getItem('feedback_closed') !== 'true' && sessionStorage.getItem('feedback_submitted') !== 'true') {
+      openFeedbackModal();
+    }
+    if (window.plausible) {
+      plausible('generate_click', {
+        props: {
+          mood: state.selectedMood || 'none',
+          epoch: state.selectedEpoch || 'none',
+          rating: state.selectedRating || 'none',
+          popularity: state.selectedPopularity || 'none'
+        }
+      });
+    }
     renderLoadingScreen();
     var opts = {
       mood: state.selectedMood || 'neutral',
