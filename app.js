@@ -860,7 +860,9 @@ function getRecommendationFromApi(options) {
         }
         var displayTitle = String(rec.original_title).trim();
         if (titleEl) titleEl.textContent = displayTitle;
-        if (descEl) descEl.textContent = rec.description != null ? String(rec.description) : '';
+        var desc = rec.description ? String(rec.description).trim() : '';
+        if (!desc || desc.toLowerCase() === 'short description.') desc = 'Описание временно недоступно.';
+        if (descEl) descEl.textContent = desc;
         if (imdbEl) {
           var ratingSpan = imdbEl.querySelector('.imdb-badge__rating');
           if (rec.rating != null && rec.rating !== '') {

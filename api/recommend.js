@@ -130,7 +130,16 @@ MOOD: romance (Романтика)
 
 ---
 
-Правила описания: пиши коротко, разговорным тоном, атмосферу и послевкусие. Не пересказывай сюжет целиком. Название фильма не выдумывай и не включай в текст описания — только метаданные в полях.
+Правила описания:
+- Описание должно быть на РУССКОМ языке.
+- 3–4 полноценных предложения.
+- Атмосферное, живое, разговорное.
+- Передавать ощущение и послевкусие фильма.
+- НЕ пересказывать сюжет подробно.
+- НЕ использовать название фильма в тексте.
+- НЕ использовать шаблоны типа "Short description."
+- НЕ использовать заглушки.
+- Описание ОБЯЗАТЕЛЬНО должно быть осмысленным текстом.
 
 Популярность: gold — только иконические фильмы; middle — крепкое кино не из топ-250; underground — нишевое, фестивальное. Если не указано — предпочитай middle/underground.
 
@@ -156,7 +165,7 @@ CRITICAL TITLE CONTRACT (ОБЯЗАТЕЛЕН):
     {
       "original_title": "Exact English canonical movie title",
       "year": 2010,
-      "description": "Short description.",
+      "description": "Атмосферное описание на русском языке, 3–4 предложения.",
       "rating": "7.5",
       "country": "USA",
       "genres": "Drama",
@@ -177,10 +186,12 @@ function setCors(res) {
 
 function toRecommendation(parsed) {
   var originalTitle = parsed && (parsed.original_title != null || parsed.originalTitle != null) ? String(parsed.original_title || parsed.originalTitle).trim() : '';
+  var desc = parsed && parsed.description != null ? String(parsed.description).trim() : '';
+  if (!desc || desc.toLowerCase() === 'short description.') desc = 'Описание временно недоступно.';
   return {
     title: originalTitle,
     original_title: originalTitle,
-    description: parsed && parsed.description != null ? String(parsed.description) : '',
+    description: desc,
     rating: parsed && parsed.rating != null ? String(parsed.rating) : '',
     year: (function () {
       if (!parsed) return null;
