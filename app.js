@@ -1,5 +1,25 @@
 'use strict';
 
+function hasSubmittedFeedback() {
+  return localStorage.getItem('feedback_submitted') === 'true';
+}
+
+function setFeedbackSubmitted() {
+  localStorage.setItem('feedback_submitted', 'true');
+}
+
+function setFeedbackDismissedNow() {
+  localStorage.setItem('feedback_dismissed_at', Date.now().toString());
+}
+
+function canShowFeedback() {
+  if (hasSubmittedFeedback()) return false;
+  var dismissedAt = localStorage.getItem('feedback_dismissed_at');
+  if (!dismissedAt) return true;
+  var TWO_DAYS = 1000 * 60 * 60 * 48;
+  return Date.now() - Number(dismissedAt) > TWO_DAYS;
+}
+
 function sendFeedbackToGoogle(rating, text) {
   fetch("https://docs.google.com/forms/d/e/1FAIpQLSdKzsSIUqjkuYpxOP1CjllnDerG9kMW7YYBNXiF-WG4cQhKNQ/formResponse", {
     method: "POST",
@@ -902,7 +922,7 @@ function getRecommendationFromApi(options) {
     overlay.innerHTML = '<div class="feedback-modal"><button type="button" class="feedback-close-btn" aria-label="Закрыть">&times;</button><h3 class="feedback-title">Как тебе подборка?</h3><div class="feedback-stars"></div><textarea class="feedback-textarea" placeholder="Комментарий (необязательно)" rows="3"></textarea><button type="button" class="btn-primary feedback-submit-btn">Отправить</button></div>';
     overlay.addEventListener('click', function (e) {
       if (e.target === overlay) {
-        // sessionStorage.setItem('feedback_closed', 'true');
+        setFeedbackDismissedNow();
         closeFeedbackModal();
       }
     });
@@ -925,7 +945,7 @@ function getRecommendationFromApi(options) {
       starsContainer.appendChild(star);
     }
     closeBtn.addEventListener('click', function () {
-      // sessionStorage.setItem('feedback_closed', 'true');
+      setFeedbackDismissedNow();
       closeFeedbackModal();
     });
     submitBtn.addEventListener('click', function () {
@@ -939,12 +959,11 @@ function getRecommendationFromApi(options) {
         });
       }
       sendFeedbackToGoogle(selectedRating, textareaEl ? textareaEl.value : '');
-      // sessionStorage.setItem('feedback_submitted', 'true');
+      setFeedbackSubmitted();
       modal.innerHTML = '<button type="button" class="feedback-close-btn" aria-label="Закрыть">&times;</button><p class="feedback-thanks">Спасибо, что оценили, это важно для развития приложения ❤️</p>';
       var successCloseBtn = modal.querySelector('.feedback-close-btn');
       if (successCloseBtn) {
         successCloseBtn.addEventListener('click', function () {
-          // sessionStorage.setItem('feedback_closed', 'true');
           closeFeedbackModal();
         });
       }
@@ -957,7 +976,8 @@ function getRecommendationFromApi(options) {
   /** Shared handler for "Поменяй": loading screen then fetch then show result (or fallbacks). */
   function onAnotherMovieClick() {
     generateCounter++;
-    if (generateCounter === 4) {
+    if (generateCounter >= 5 && canShowFeedback() && !sessionStorage.getItem('feedback_shown_this_session')) {
+      sessionStorage.setItem('feedback_shown_this_session', 'true');
       openFeedbackModal();
     }
     if (window.plausible) {
@@ -1207,7 +1227,8 @@ function getRecommendationFromApi(options) {
 
   function onFindMovieClick() {
     generateCounter++;
-    if (generateCounter === 4) {
+    if (generateCounter >= 5 && canShowFeedback() && !sessionStorage.getItem('feedback_shown_this_session')) {
+      sessionStorage.setItem('feedback_shown_this_session', 'true');
       openFeedbackModal();
     }
     if (window.plausible) {
