@@ -246,8 +246,9 @@ function pickMovie(options) {
   return { movie: movie, reason: 'Подобрано по вашему настроению' };
 }
 
-/** Backend must return { recommendation: { title, description, rating, year, country, genres, ageLimit } } */
+/** Backend must return { recommendation: { title, description, rating, year, country, genres, ageLimit } }, optional sessionId for session history. */
 var API_RECOMMEND_URL = '/api/recommend';
+var apiSessionId = null;
 
 var TMDB_API_KEY = '7d7983a4442f13b2d23ad89cfea14294';
 var TMDB_BACKDROP_BASE = 'https://image.tmdb.org/t/p/w780';
@@ -348,7 +349,8 @@ function getRecommendationFromApi(options) {
       rating: options.rating || null,
       popularity: options.popularity || null,
       exclude: options.exclude || [],
-      likedMovies: options.likedMovies || []
+      likedMovies: options.likedMovies || [],
+      sessionId: options.sessionId != null ? options.sessionId : apiSessionId
     })
   }).then(function (res) {
     if (!res.ok) {
@@ -360,6 +362,7 @@ function getRecommendationFromApi(options) {
     }
     return res.json();
   }).then(function (data) {
+    if (data && data.sessionId) apiSessionId = data.sessionId;
     if (data && data._error) return data;
     if (!data || !data.recommendation) return null;
     return data;

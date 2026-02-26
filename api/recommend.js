@@ -3,67 +3,132 @@
 const Groq = require('groq-sdk');
 
 const MODEL = 'llama-3.1-8b-instant';
+const EXCLUDE_MAX = 5;
+const SESSION_HISTORY_MAX = 100;
 
-const SYSTEM_PROMPT = `Ты — кинокуратор-человек. Ты посмотрел тысячи фильмов, ведёшь блог о кино, тебе доверяют и спрашивают лично, что посмотреть. Ты думаешь не как "база результатов" или "топ-листы", а как друг, который даёт вдумчивые, контекстные рекомендации. Ты знаешь всё мировое кино: мейнстрим, фестивали, артхаус, нишевое.
+/** In-memory session storage: sessionId -> array of normalized titles (shown to user in this session). */
+const sessionStore = new Map();
 
-Цель: рекомендовать ОДИН фильм, который лучше всего подходит под настроение, ситуацию и фильтры пользователя — не самый очевидный.
+function normalizeTitle(s) {
+  return (s == null ? '' : String(s)).trim().toLowerCase();
+}
 
-Общие правила:
-- Избегай ультра-раскрученных и заезженных фильмов, если пользователь явно не просит.
-- По умолчанию избегай клише и "это все уже видели".
-- Если подходят несколько фильмов — выбери тот, что ощущается наиболее уместным и человечным.
-- Никогда не рекомендуй фильм из списка "exclude" (ранее уже рекомендованные).
-- Если фильтры настолько жёсткие, что подходит буквально один фильм — укажи в описании, что вариантов мало, и предложи ослабить фильтры.
+function getSessionHistory(sessionId) {
+  if (!sessionId) return [];
+  var arr = sessionStore.get(sessionId);
+  return Array.isArray(arr) ? arr : [];
+}
 
-Интерпретация настроения (КРИТИЧНО):
-- cry (Поплакать): человек хочет эмоционально проникнуться. Не обязательно трагедия или депрессия. Тёплая, человечная история, где эмоции накапливаются и в какой-то момент слёзы приходят сами. Эмпатия, уязвимость, эмоциональная разрядка.
-- romance (Романтика): фильм для пары, вместе на диване. Создаёт близость, тепло, эмоциональную связь. Приятно обсудить после. Избегай очевидных ромкомов, если не просят.
-- neutral (На фон): кино в фон. Простой сюжет, легко следить. Отошёл на 10 минут — ничего не потеряно. Комфортное, лёгкое, ненапрягающее.
-- sleep (Уснуть): спокойное, медленное кино. Без громких звуков, взрывов, резкого монтажа. Красивая картинка приветствуется. Может быть медленным или слегка скучным — это плюс. Цель — расслабление.
-- laugh (Посмеяться): человек хочет по-настоящему посмеяться. Не пустой шум, а нормальный юмор: умная комедия, ситуативный юмор, живые персонажи. По умолчанию избегай самых раскрученных комедий.
-- think (Подумать): фильм, после которого остаются вопросы. Открытые концовки уместны. Темы: выбор в жизни, мораль, отношения, общество, идентичность. Фильм должен застревать в голове.
-- inspire (Вдохновиться): фильм даёт энергию и мотивацию. Истории про рост, преодоление, карьеру, спорт, творчество, жизненные перемены. После просмотра — ощущение "хочу что-то делать".
-- zone (Залипнуть): погружающее, атмосферное кино. Визуальный язык важнее сюжета. Зритель должен чувствовать себя внутри мира фильма. Сложность сюжета вторична.
+function addToSessionHistory(sessionId, normalizedTitle) {
+  if (!sessionId || !normalizedTitle) return;
+  var arr = getSessionHistory(sessionId);
+  if (arr.indexOf(normalizedTitle) === -1) arr.push(normalizedTitle);
+  if (arr.length > SESSION_HISTORY_MAX) arr.splice(0, arr.length - SESSION_HISTORY_MAX);
+  sessionStore.set(sessionId, arr);
+}
 
-Правила описания фильма (КРИТИЧНО):
-- Ты — рассказчик и сторителлер, который пишет короткие описания фильмов для рекомендательного приложения.
-Ты НЕ кинокритик, НЕ аналитик и НЕ рецензент.
-Твоя задача — передать эмоциональную атмосферу и послевкусие фильма, а не фактическую информацию.
+function isInHistory(sessionId, normalizedTitle) {
+  return getSessionHistory(sessionId).indexOf(normalizedTitle) !== -1;
+}
 
-ОПРЕДЕЛЕНИЕ СТИЛЯ (Tone of Voice):
+const SYSTEM_PROMPT = `Ты — кинокуратор. Твоя задача: выбрать ОДИН фильм, который решает пользовательскую задачу, а не просто подходит по жанру или настроению.
 
-– разговорный бытовой тон
-– слегка абсурдный и ироничный
-– субъективное эмоциональное восприятие вместо объективного анализа
-– отсутствие профессионального кинокритического словаря
-– отсутствие прямого пересказа сюжета
+ОБЩЕЕ ПРАВИЛО ВЫБОРА:
+Ты выбираешь фильм не по жанру и не по атмосфере, а по тому, КАКОЙ ОПЫТ пользователь хочет получить.
+Если фильм может вызвать противоположный эффект (напряжение, тревогу, стресс) — он НЕ подходит, даже если формально связан с темой.
+Выбирай фильмы, которые МАКСИМАЛЬНО соответствуют пользовательской задаче, а не интерпретируй mood широко.
 
-– НЕ пересказывать сюжет напрямую
-– фокусироваться на атмосфере и послевкусии
-– Начни сразу с сути описания и начала сиюжета, без вводных слов
+Используй ТОЛЬКО следующие интерпретации mood как пользовательской задачи:
 
+---
 
-БЕЗОПАСНОСТЬ НАЗВАНИЙ (КРИТИЧЕСКИЕ ПРАВИЛА):
+MOOD: cry (Поплакать)
+ЗАДАЧА: Пользователь хочет эмоционально расплакаться через эмпатию и человеческие переживания.
+ПРАВИЛА ВЫБОРА:
+- Фильм должен вызывать сочувствие, уязвимость, эмоциональное узнавание.
+- Эмоции должны накапливаться постепенно.
+- Слёзы — результат сопереживания, а не шока.
+- НЕ выбирать фильмы, где основная эмоция — страх, тревога, напряжение или безысходность.
+- Если фильм тяжёлый, он должен быть человечным, а не давящим.
 
-– Ты НИКОГДА не должен генерировать, переписывать, переводить, переосмысливать или выдумывать названия фильмов.
-– Ты НИКОГДА не должен выводить текст, похожий на название фильма.
-– Ты НИКОГДА не должен включать название фильма в описание.
-– Название фильма — это фиксированные метаданные и должно игнорироваться при генерации.
-– Если название присутствует во входных данных, воспринимай его ТОЛЬКО как метаданные и НЕ используй в тексте.
+---
 
+MOOD: sleep (Уснуть)
+ЗАДАЧА: Пользователь хочет расслабиться и, возможно, уснуть во время просмотра.
+ПРАВИЛА ВЫБОРА:
+- Фильм не должен требовать постоянного внимания.
+- Сюжет должен быть предсказуемым или вторичным.
+- Никаких резких эмоциональных пиков.
+- Если фильм меланхоличный, он должен быть успокаивающим, а не тревожным.
+- Засыпание во время фильма — допустимый и ожидаемый сценарий.
 
-Популярность:
-- gold (Золотой фонд): только иконические, канонические фильмы, которые "все должны знать".
-- middle (Крепкое кино): очень хорошие фильмы, которые НЕ в топ-250.
-- underground (Андеграунд): нишевое, фестивальное, менее мейнстримное, с меньшим числом оценок.
+---
 
-Правила популярности:
-- Если "Золотой фонд" НЕ выбран — почти не предлагай золотофондные фильмы (примерно 1 из 10 можно).
-- Если "Золотой фонд" выбран — рекомендуй ТОЛЬКО иконические, канонические фильмы.
-- Если ничего не выбрано — предпочитай крепкое кино или андеграунд, избегай очевидной классики.
+MOOD: neutral (На фон)
+ЗАДАЧА: Фильм нужен как фоновый контент.
+ПРАВИЛА ВЫБОРА:
+- Потеря части сюжета не критична.
+- Нет сложной драматургии.
+- Фильм не должен перетягивать внимание на себя.
+- Комфорт и простота важнее глубины.
+
+---
+
+MOOD: laugh (Посмеяться)
+ЗАДАЧА: Пользователь хочет реально смеяться, а не просто смотреть «лёгкое кино».
+ПРАВИЛА ВЫБОРА:
+- Юмор должен быть центральным элементом фильма.
+- Комедия должна работать без глубокого погружения в драму.
+- НЕ выбирать фильмы, где комедия вторична.
+- Смех важнее смысла, морали или подтекста.
+
+---
+
+MOOD: think (Подумать)
+ЗАДАЧА: Пользователь хочет фильм, который оставляет вопросы и мысли после просмотра.
+ПРАВИЛА ВЫБОРА:
+- Фильм должен поднимать идеи, а не только эмоции.
+- Важны темы выбора, ответственности, смысла.
+- Фильм может быть неспешным, но не пустым.
+- НЕ выбирать фильмы, где всё объясняется напрямую.
+
+---
+
+MOOD: inspire (Вдохновиться)
+ЗАДАЧА: Пользователь хочет почувствовать внутренний импульс к действию.
+ПРАВИЛА ВЫБОРА:
+- Фильм должен давать ощущение движения вперёд.
+- История про рост, преодоление или изменение.
+- После фильма должно оставаться ощущение энергии, а не усталости.
+- НЕ выбирать фильмы с циничным или депрессивным посылом.
+
+---
+
+MOOD: zone (Залипнуть)
+ЗАДАЧА: Пользователь хочет погрузиться в атмосферу и потерять ощущение времени.
+ПРАВИЛА ВЫБОРА:
+- Атмосфера важнее сюжета.
+- Визуальный и аудиальный мир должен затягивать.
+- Фильм может быть медленным, если он удерживает погружение.
+- НЕ выбирать фильмы, которые требуют постоянного анализа.
+
+---
+
+MOOD: romance (Романтика)
+ЗАДАЧА: Фильм для пары, вместе на диване — близость, тепло, эмоциональная связь.
+ПРАВИЛА ВЫБОРА:
+- Создаёт ощущение близости и тепла.
+- Приятно обсудить после просмотра.
+- НЕ выбирать фильмы с доминирующей тревогой или напряжением в отношениях.
+
+---
+
+Правила описания: пиши коротко, разговорным тоном, атмосферу и послевкусие. Не пересказывай сюжет целиком. Название фильма не выдумывай и не включай в текст описания — только метаданные в полях.
+
+Популярность: gold — только иконические фильмы; middle — крепкое кино не из топ-250; underground — нишевое, фестивальное. Если не указано — предпочитай middle/underground.
 
 Формат ответа:
-Верни ровно ОДИН фильм. Только реальные фильмы (IMDb/TMDB). Строго один JSON-объект без markdown и текста до/после.
+Верни ровно ОДИН фильм. Только реальные фильмы (IMDb/TMDB). Строго один JSON без markdown и текста до/после.
 {"title":"Название на русском","original_title":"Original Title","description":"Краткое описание.","rating":"7.5","year":2010,"country":"США","genres":"Драма","ageLimit":"16+"}
 Поля: title, original_title, description, rating, year, country, genres, ageLimit. Список exclude — ЗАПРЕЩЕНО возвращать эти фильмы.`;
 
@@ -92,6 +157,18 @@ function toRecommendation(parsed) {
   };
 }
 
+/** Fallback when both LLM responses were duplicates. Same shape as toRecommendation output. */
+var FALLBACK_RECOMMENDATION = {
+  title: 'Побег из Шоушенка',
+  original_title: 'The Shawshank Redemption',
+  description: 'Банкир Энди Дюфрейн приговорён к пожизненному заключению. В тюрьме он находит друга и сохраняет надежду.',
+  rating: '9.3',
+  year: 1994,
+  country: 'США',
+  genres: 'Драма',
+  ageLimit: '16+'
+};
+
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') {
@@ -106,52 +183,111 @@ module.exports = async (req, res) => {
       return;
     }
 
-    let mood = null, epoch = null, rating = null, exclude = [], popularity = null, likedMovies = [];
+    let mood = null, epoch = null, rating = null, popularity = null, likedMovies = [], sessionId = null;
     const rawBody = req.body ?? {};
     try {
       const body = typeof rawBody === 'string' ? JSON.parse(rawBody) : (typeof rawBody === 'object' && rawBody !== null ? rawBody : {});
       if (body && typeof body === 'object') {
-        const { mood: m, epoch: e, rating: r, exclude: ex, popularity: p, likedMovies: lm } = body;
+        const { mood: m, epoch: e, rating: r, popularity: p, likedMovies: lm, sessionId: sid } = body;
         mood = m; epoch = e; rating = r; popularity = p;
-        exclude = Array.isArray(ex) ? ex : [];
         likedMovies = Array.isArray(lm) ? lm : [];
+        sessionId = sid != null && String(sid).trim() ? String(sid).trim() : null;
       }
     } catch (_) {}
+    if (!sessionId) {
+      sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 12);
+    }
 
-    let likedBlock = '';
+    var history = getSessionHistory(sessionId);
+    var likedBlock = '';
     if (likedMovies.length > 0) {
       likedBlock = '\n\nUser liked these movies:\n• ' + likedMovies.slice(0, 30).join('\n• ') + '\n\nWhen generating a recommendation, take these preferences slightly into account. Do not repeat the same movies. Do NOT overly bias toward identical genre. Just consider patterns in user preferences.';
     }
-    const userMessage = `Подбери один фильм. Настроение: ${mood || 'любое'}. Эпоха: ${epoch || 'любая'}. Рейтинг: ${rating || 'любой'}. Популярность: ${popularity || 'любая'}. Исключить: ${exclude.length ? exclude.slice(0, 50).join(', ') : '—'}.${likedBlock} Ответь только JSON в указанном формате.`;
 
+    /** First prompt: no exclude. */
+    function buildUserMessage(excludeList) {
+      var excludePart = '';
+      if (Array.isArray(excludeList) && excludeList.length > 0) {
+        var lastN = excludeList.slice(-EXCLUDE_MAX);
+        excludePart = '\n\nНе рекомендуй фильмы из следующего списка (уже показаны в этой сессии): ' + lastN.join(', ') + '.';
+      }
+      return `Подбери один фильм. Настроение: ${mood || 'любое'}. Эпоха: ${epoch || 'любая'}. Рейтинг: ${rating || 'любой'}. Популярность: ${popularity || 'любая'}.${excludePart}${likedBlock} Ответь только JSON в указанном формате.`;
+    }
+
+    var userMessage1 = buildUserMessage(null);
     const client = new Groq({ apiKey });
-    const completion = await client.chat.completions.create({
-      model: MODEL,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userMessage }
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.6,
-      max_tokens: 800
+
+    /** Single LLM call; returns parsed object or null on failure. */
+    function callGroq(userMsg) {
+      return client.chat.completions.create({
+        model: MODEL,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: userMsg }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.6,
+        max_tokens: 800
+      }).then(function (completion) {
+        var content = completion && completion.choices && completion.choices[0] && completion.choices[0].message && completion.choices[0].message.content;
+        if (typeof content !== 'string' || !content.trim()) return null;
+        try {
+          return JSON.parse(content);
+        } catch (_) {
+          return null;
+        }
+      }).catch(function () {
+        return null;
+      });
+    }
+
+    function titleFromParsed(parsed) {
+      if (!parsed) return '';
+      var ot = parsed.original_title != null || parsed.originalTitle != null ? String(parsed.original_title || parsed.originalTitle).trim() : '';
+      var t = parsed.title != null ? String(parsed.title).trim() : '';
+      return ot || t || '';
+    }
+
+    /** First request: no exclude. */
+    var first = await callGroq(userMessage1);
+    if (!first) {
+      res.status(502).json({ error: 'Empty or invalid Groq response' });
+      return;
+    }
+    var title1 = normalizeTitle(titleFromParsed(first));
+    if (!title1) {
+      res.status(502).json({ error: 'Model did not return a valid title' });
+      return;
+    }
+
+    if (!isInHistory(sessionId, title1)) {
+      addToSessionHistory(sessionId, title1);
+      var out = { recommendation: toRecommendation(first) };
+      if (sessionId) out.sessionId = sessionId;
+      res.status(200).json(out);
+      return;
+    }
+
+    /** Duplicate: second request with exclude (last N from session history). */
+    var userMessage2 = buildUserMessage(history);
+    var second = await callGroq(userMessage2);
+    if (second) {
+      var title2 = normalizeTitle(titleFromParsed(second));
+      if (title2 && !isInHistory(sessionId, title2)) {
+        addToSessionHistory(sessionId, title2);
+        var out2 = { recommendation: toRecommendation(second) };
+        if (sessionId) out2.sessionId = sessionId;
+        res.status(200).json(out2);
+        return;
+      }
+    }
+
+    /** Both were duplicates or second failed: use fallback. */
+    addToSessionHistory(sessionId, normalizeTitle(FALLBACK_RECOMMENDATION.original_title));
+    res.status(200).json({
+      recommendation: FALLBACK_RECOMMENDATION,
+      sessionId: sessionId
     });
-
-    const content = completion?.choices?.[0]?.message?.content;
-    if (typeof content !== 'string' || !content.trim()) {
-      res.status(502).json({ error: 'Empty Groq response' });
-      return;
-    }
-
-    let parsed;
-    try {
-      parsed = JSON.parse(content);
-    } catch (_) {
-      res.status(502).json({ error: 'Invalid JSON from model' });
-      return;
-    }
-
-    const recommendation = toRecommendation(parsed);
-    res.status(200).json({ recommendation });
   } catch (err) {
     console.error('GROQ ERROR:', err);
     res.status(500).json({ error: err.message || 'Recommendation failed', details: 'Check Groq API Key or Quota' });
