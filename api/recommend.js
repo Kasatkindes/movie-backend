@@ -9,6 +9,10 @@ const SESSION_HISTORY_MAX = 100;
 /** In-memory session storage: sessionId -> array of normalized titles (shown to user in this session). */
 const sessionStore = new Map();
 
+/** Per-session queue of pre-fetched recommendations (up to 5). One LLM call fills the queue; each request pops one. */
+const sessionQueue = new Map();
+const BATCH_SIZE = 5;
+
 function normalizeTitle(s) {
   return (s == null ? '' : String(s)).trim().toLowerCase();
 }
@@ -140,21 +144,27 @@ CRITICAL TITLE CONTRACT (ОБЯЗАТЕЛЕН):
 ---
 
 Формат ответа (STRICT):
-Верни ровно ОДИН фильм. Только реальные фильмы (IMDb/TMDB). Строго один JSON без markdown и текста до/после.
-Поля ТОЛЬКО: original_title, year, description, rating, country, genres, ageLimit. Поле "title" ЗАПРЕЩЕНО.
+Верни РОВНО 5 РАЗНЫХ фильмов. Только реальные фильмы (IMDb/TMDB). Строго один JSON без markdown и текста до/после.
+Фильмы в массиве НЕ должны повторяться. Разнообразие по жанрам/годам приветствуется.
+Поле "title" ЗАПРЕЩЕНО. Только original_title (английское каноническое название).
 
 {
-  "original_title": "Exact English canonical movie title",
-  "year": 2010,
-  "description": "Short description.",
-  "rating": "7.5",
-  "country": "USA",
-  "genres": "Drama",
-  "ageLimit": "16+"
+  "movies": [
+    {
+      "original_title": "Exact English canonical movie title",
+      "year": 2010,
+      "description": "Short description.",
+      "rating": "7.5",
+      "country": "USA",
+      "genres": "Drama",
+      "ageLimit": "16+"
+    }
+  ]
 }
 
-- original_title: ТОЛЬКО точное каноническое название на английском (как в IMDb/TMDB). Никаких переводов, выдумок, вариантов.
-- Список exclude — ЗАПРЕЩЕНО возвращать эти фильмы.`;
+- movies: массив из ровно 5 объектов. У каждого: original_title, year, description, rating, country, genres, ageLimit.
+- original_title: ТОЛЬКО точное каноническое название на английском (как в IMDb/TMDB). Никаких переводов, выдумок.
+- Список exclude — ЗАПРЕЩЕНО возвращать эти фильмы в массиве.`;
 
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -223,95 +233,75 @@ module.exports = async (req, res) => {
       sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 12);
     }
 
+    var queue = sessionQueue.get(sessionId);
+    if (!Array.isArray(queue)) queue = [];
+    if (queue.length > 0) {
+      var next = queue.shift();
+      sessionQueue.set(sessionId, queue);
+      addToSessionHistory(sessionId, normalizeTitle(next.original_title));
+      res.status(200).json({ recommendation: next, sessionId: sessionId });
+      return;
+    }
+
     var history = getSessionHistory(sessionId);
     var likedBlock = '';
     if (likedMovies.length > 0) {
-      likedBlock = '\n\nUser liked these movies:\n• ' + likedMovies.slice(0, 30).join('\n• ') + '\n\nWhen generating a recommendation, take these preferences slightly into account. Do not repeat the same movies. Do NOT overly bias toward identical genre. Just consider patterns in user preferences.';
+      likedBlock = '\n\nUser liked these movies:\n• ' + likedMovies.slice(0, 30).join('\n• ') + '\n\nWhen generating recommendations, take these preferences slightly into account. Do not repeat the same movies.';
     }
 
-    /** First prompt: no exclude. */
     function buildUserMessage(excludeList) {
       var excludePart = '';
       if (Array.isArray(excludeList) && excludeList.length > 0) {
         var lastN = excludeList.slice(-EXCLUDE_MAX);
-        excludePart = '\n\nНе рекомендуй фильмы из следующего списка (уже показаны в этой сессии): ' + lastN.join(', ') + '.';
+        excludePart = '\n\nНе включай в массив фильмы из списка (уже показаны в этой сессии): ' + lastN.join(', ') + '.';
       }
-      return `Подбери один фильм. Настроение: ${mood || 'любое'}. Эпоха: ${epoch || 'любая'}. Рейтинг: ${rating || 'любой'}. Популярность: ${popularity || 'любая'}.${excludePart}${likedBlock} Ответь только JSON в указанном формате.`;
+      return `Подбери 5 разных фильмов. Настроение: ${mood || 'любое'}. Эпоха: ${epoch || 'любая'}. Рейтинг: ${rating || 'любой'}. Популярность: ${popularity || 'любая'}.${excludePart}${likedBlock} Ответь только JSON в указанном формате (массив movies из 5 элементов).`;
     }
 
-    var userMessage1 = buildUserMessage(null);
     const client = new Groq({ apiKey });
-
-    /** Single LLM call; returns parsed object or null on failure. */
-    function callGroq(userMsg) {
-      return client.chat.completions.create({
-        model: MODEL,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: userMsg }
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.6,
-        max_tokens: 800
-      }).then(function (completion) {
-        var content = completion && completion.choices && completion.choices[0] && completion.choices[0].message && completion.choices[0].message.content;
-        if (typeof content !== 'string' || !content.trim()) return null;
-        try {
-          return JSON.parse(content);
-        } catch (_) {
-          return null;
-        }
-      }).catch(function () {
+    var raw = await client.chat.completions.create({
+      model: MODEL,
+      messages: [
+        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'user', content: buildUserMessage(history) }
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.6,
+      max_tokens: 2000
+    }).then(function (completion) {
+      var content = completion && completion.choices && completion.choices[0] && completion.choices[0].message && completion.choices[0].message.content;
+      if (typeof content !== 'string' || !content.trim()) return null;
+      try {
+        return JSON.parse(content);
+      } catch (_) {
         return null;
-      });
-    }
-
-    /** Only original_title is used for session history and validation. No fallback to title or localized names. */
-    function titleFromParsed(parsed) {
-      if (!parsed) return '';
-      return (parsed.original_title != null || parsed.originalTitle != null) ? String(parsed.original_title || parsed.originalTitle).trim() : '';
-    }
-
-    /** First request: no exclude. */
-    var first = await callGroq(userMessage1);
-    if (!first) {
-      res.status(502).json({ error: 'Empty or invalid Groq response' });
-      return;
-    }
-    var title1 = normalizeTitle(titleFromParsed(first));
-    if (!title1) {
-      res.status(502).json({ error: 'Model did not return a valid title' });
-      return;
-    }
-
-    if (!isInHistory(sessionId, title1)) {
-      addToSessionHistory(sessionId, title1);
-      var out = { recommendation: toRecommendation(first) };
-      if (sessionId) out.sessionId = sessionId;
-      res.status(200).json(out);
-      return;
-    }
-
-    /** Duplicate: second request with exclude (last N from session history). */
-    var userMessage2 = buildUserMessage(history);
-    var second = await callGroq(userMessage2);
-    if (second) {
-      var title2 = normalizeTitle(titleFromParsed(second));
-      if (title2 && !isInHistory(sessionId, title2)) {
-        addToSessionHistory(sessionId, title2);
-        var out2 = { recommendation: toRecommendation(second) };
-        if (sessionId) out2.sessionId = sessionId;
-        res.status(200).json(out2);
-        return;
       }
-    }
-
-    /** Both were duplicates or second failed: use fallback. */
-    addToSessionHistory(sessionId, normalizeTitle(FALLBACK_RECOMMENDATION.original_title));
-    res.status(200).json({
-      recommendation: FALLBACK_RECOMMENDATION,
-      sessionId: sessionId
+    }).catch(function () {
+      return null;
     });
+
+    var list = (raw && raw.movies && Array.isArray(raw.movies)) ? raw.movies : [];
+    var seen = {};
+    var recommendations = [];
+    for (var i = 0; i < list.length && recommendations.length < BATCH_SIZE; i++) {
+      var item = list[i];
+      var rec = toRecommendation(item);
+      if (!rec.original_title || !String(rec.original_title).trim()) continue;
+      var key = normalizeTitle(rec.original_title);
+      if (seen[key]) continue;
+      seen[key] = true;
+      if (isInHistory(sessionId, key)) continue;
+      recommendations.push(rec);
+    }
+    if (recommendations.length === 0) {
+      addToSessionHistory(sessionId, normalizeTitle(FALLBACK_RECOMMENDATION.original_title));
+      res.status(200).json({ recommendation: FALLBACK_RECOMMENDATION, sessionId: sessionId });
+      return;
+    }
+    var one = recommendations.shift();
+    sessionQueue.set(sessionId, recommendations);
+    addToSessionHistory(sessionId, normalizeTitle(one.original_title));
+    res.status(200).json({ recommendation: one, sessionId: sessionId });
   } catch (err) {
     console.error('GROQ ERROR:', err);
     res.status(500).json({ error: err.message || 'Recommendation failed', details: 'Check Groq API Key or Quota' });
