@@ -127,10 +127,24 @@ MOOD: romance (Романтика)
 
 Популярность: gold — только иконические фильмы; middle — крепкое кино не из топ-250; underground — нишевое, фестивальное. Если не указано — предпочитай middle/underground.
 
-Формат ответа:
+---
+
+CRITICAL TITLE CONTRACT (ОБЯЗАТЕЛЕН):
+1. The model MUST return ONLY the original English title of the movie in the field original_title.
+2. The model MUST NOT translate movie titles into any other language.
+3. The model MUST NOT invent, approximate, localize or creatively reinterpret titles.
+4. If the model is not confident in the exact original title, it MUST choose a different movie.
+5. Returning an uncertain or made-up title is strictly forbidden.
+6. original_title: string — English, canonical movie title exactly as in IMDb/TMDB. No localized titles, no alternative titles, no explanations, no multiple options.
+
+---
+
+Формат ответа (STRICT):
 Верни ровно ОДИН фильм. Только реальные фильмы (IMDb/TMDB). Строго один JSON без markdown и текста до/после.
-{"title":"Название на русском","original_title":"Original Title","description":"Краткое описание.","rating":"7.5","year":2010,"country":"США","genres":"Драма","ageLimit":"16+"}
-Поля: title, original_title, description, rating, year, country, genres, ageLimit. Список exclude — ЗАПРЕЩЕНО возвращать эти фильмы.`;
+{"title":"Название на русском","original_title":"Exact English canonical title","description":"Краткое описание.","rating":"7.5","year":2010,"country":"США","genres":"Драма","ageLimit":"16+"}
+Поля: title, original_title, description, rating, year, country, genres, ageLimit.
+- original_title: ТОЛЬКО точное каноническое название на английском (как в IMDb/TMDB). Никаких переводов, выдумок, вариантов.
+- Список exclude — ЗАПРЕЩЕНО возвращать эти фильмы.`;
 
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
