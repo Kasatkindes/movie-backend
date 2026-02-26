@@ -8,8 +8,8 @@ function sendFeedbackToGoogle(rating, text) {
       "Content-Type": "application/x-www-form-urlencoded"
     },
     body: new URLSearchParams({
-      "entry.1289232695": rating,
-      "entry.53559483": text || ""
+      "entry.53559483": rating,
+      "entry.1289232695": text || ""
     })
   });
 }
