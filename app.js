@@ -750,6 +750,21 @@ function getRecommendationFromApi(options) {
   function fadeOutLoadingThenShowMovie(result, opts) {
     var data = result && result.data;
     var section = app.querySelector('.screen-loading');
+    function stopLoadingPhrase() {
+      if (loadingPhraseIntervalId) {
+        clearInterval(loadingPhraseIntervalId);
+        loadingPhraseIntervalId = null;
+      }
+    }
+    function doFadeOutThen(callback) {
+      stopLoadingPhrase();
+      if (section && section.parentNode) {
+        section.classList.add('screen-loading--fade-out');
+        setTimeout(callback, 400);
+      } else {
+        callback();
+      }
+    }
     function proceed() {
       if (result.serverError && (result.status === 500 || result.status >= 500 || result.status === 0)) {
         var msg = 'Упс, нейронка устала. Попробуйте через минуту';
@@ -757,24 +772,48 @@ function getRecommendationFromApi(options) {
         renderServerErrorScreen(msg);
         return;
       }
-      if (data && data.recommendation) {
-        if (result.exhausted) {
-          renderNoMoreVariantsScreen(null, 'Попробуйте сменить фильтры');
-          return;
-        }
-        renderMovieFromBackendResponse(data);
-      } else if (opts) {
+      if (data && data.recommendation && result.exhausted) {
+        renderNoMoreVariantsScreen(null, 'Попробуйте сменить фильтры');
+        return;
+      }
+      if (opts) {
         renderMovieScreen(pickMovie(opts).movie);
       } else {
         renderMoodScreen();
       }
     }
+    if (data && data.recommendation && !result.exhausted) {
+      var rec = data.recommendation;
+      var needTmdb = typeof rec !== 'string' && rec.original_title != null && String(rec.original_title).trim() !== '';
+      if (!needTmdb) {
+        if (typeof rec === 'string') {
+          doFadeOutThen(function () {
+            renderMovieCardFinal({ title: 'Ваша рекомендация', posterUrl: null, description: rec, rec: null });
+          });
+        } else {
+          doFadeOutThen(function () {
+            renderMovieCardFinal({ title: null, posterUrl: null, description: 'Нет данных о фильме.', rec: rec });
+          });
+        }
+        return;
+      }
+      fetchMovieBackdrop(rec.original_title, rec.year).then(function (tmdbResult) {
+        var finalTitle = (tmdbResult.matchedTitle && String(tmdbResult.matchedTitle).trim()) ? tmdbResult.matchedTitle.trim() : null;
+        var finalPosterUrl = (tmdbResult.url && tmdbResult.url !== FALLBACK_BACKDROP_URL) ? tmdbResult.url : null;
+        var description = (tmdbResult.overview && String(tmdbResult.overview).trim()) ? tmdbResult.overview.trim() : 'Описание отсутствует.';
+        doFadeOutThen(function () {
+          renderMovieCardFinal({ title: finalTitle, posterUrl: finalPosterUrl, description: description, rec: rec });
+        });
+      }).catch(function () {
+        doFadeOutThen(function () {
+          renderMovieCardFinal({ title: null, posterUrl: null, description: 'Описание отсутствует.', rec: rec });
+        });
+      });
+      return;
+    }
     if (section) {
       section.classList.add('screen-loading--fade-out');
-      if (loadingPhraseIntervalId) {
-        clearInterval(loadingPhraseIntervalId);
-        loadingPhraseIntervalId = null;
-      }
+      stopLoadingPhrase();
       setTimeout(proceed, 400);
     } else {
       proceed();
@@ -842,40 +881,6 @@ function getRecommendationFromApi(options) {
     fetchRecommendationWithRetry(opts, 3).then(function (result) {
       fadeOutLoadingThenShowMovie(result, result.opts);
     });
-  }
-
-  /** Loading state: skeleton and buttons only. No title. Card renders only after TMDB. */
-  function renderResultLoadingState() {
-    app.innerHTML =
-      '<section class="screen screen-movie">' +
-        '<main class="result-content">' +
-          '<div id="result-backdrop" class="result-backdrop"><div class="poster-skeleton"></div></div>' +
-          '<div class="result-meta-row">' +
-            '<span id="result-imdb" class="imdb-badge" style="display:none">' + IMDB_ICON_SVG + '<span class="imdb-badge__rating"></span></span>' +
-            '<span id="result-meta" class="result-meta"></span>' +
-          '</div>' +
-          '<div class="result-desc-card">' +
-            '<h2 id="result-title" class="result-card-title"></h2>' +
-            '<p id="result-description" class="result-description">Загрузка…</p>' +
-          '</div>' +
-        '</main>' +
-        '<div class="movie-result-bottom-panel">' +
-          '<div class="bottom-actions">' +
-            '<button type="button" id="btn-back" class="btn-secondary-circle" aria-label="Назад">' +
-              '<img src="assets/icons/back.svg" alt="" width="24" height="24">' +
-            '</button>' +
-            '<button type="button" id="btn-another" class="btn-primary">' +
-              '<img class="btn-icon" src="assets/icons/reload.svg" alt="" width="24" height="24">' +
-              '<span>Поменяй</span>' +
-            '</button>' +
-            '<button type="button" id="btn-favorite" class="btn-secondary-circle" aria-label="В избранное">' +
-              '<img src="assets/icons/favourite_off.svg" alt="" width="24" height="24">' +
-            '</button>' +
-          '</div>' +
-        '</div>' +
-      '</section>';
-    app.querySelector('#btn-back').addEventListener('click', renderMoodScreen);
-    app.querySelector('#btn-another').addEventListener('click', onAnotherMovieClick);
   }
 
   /**
@@ -961,40 +966,6 @@ function getRecommendationFromApi(options) {
         }
         updateFavoriteButtonState(btnFavorite, title);
       });
-    }
-  }
-
-  /**
-   * Renders movie result from backend: loading state first, then TMDB, then one final card render. Never shows original_title in UI.
-   * @param {{ recommendation: object|string }} data
-   */
-  function renderMovieFromBackendResponse(data) {
-    try {
-      var rec = data.recommendation;
-      renderResultLoadingState();
-
-      if (typeof rec === 'string') {
-        renderMovieCardFinal({ title: 'Ваша рекомендация', posterUrl: null, description: rec, rec: null });
-        return;
-      }
-      var hasOriginalTitle = rec.original_title != null && String(rec.original_title).trim() !== '';
-      if (!hasOriginalTitle) {
-        renderMovieCardFinal({ title: null, posterUrl: null, description: 'Нет данных о фильме.', rec: rec });
-        return;
-      }
-
-      fetchMovieBackdrop(rec.original_title, rec.year).then(function (result) {
-        var finalTitle = (result.matchedTitle && String(result.matchedTitle).trim()) ? result.matchedTitle.trim() : null;
-        var finalPosterUrl = (result.url && result.url !== FALLBACK_BACKDROP_URL) ? result.url : null;
-        var description = (result.overview && String(result.overview).trim()) ? result.overview.trim() : 'Описание отсутствует.';
-        renderMovieCardFinal({ title: finalTitle, posterUrl: finalPosterUrl, description: description, rec: rec });
-      }).catch(function () {
-        renderMovieCardFinal({ title: null, posterUrl: null, description: 'Описание отсутствует.', rec: rec });
-      });
-    } catch (err) {
-      console.error('renderMovieFromBackendResponse', err);
-      var opts = { mood: state.selectedMood || 'neutral', epoch: state.selectedEpoch, rating: state.selectedRating };
-      renderMovieScreen(pickMovie(opts).movie);
     }
   }
 
