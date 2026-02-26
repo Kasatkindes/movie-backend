@@ -1,5 +1,19 @@
 'use strict';
 
+function sendFeedbackToGoogle(rating, text) {
+  fetch("https://docs.google.com/forms/d/e/1FAIpQLSdKzsSIUqjkuYpxOP1CjllnDerG9kMW7YYBNXiF-WG4cQhKNQ/formResponse", {
+    method: "POST",
+    mode: "no-cors",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded"
+    },
+    body: new URLSearchParams({
+      "entry.1289232695": rating,
+      "entry.53559483": text || ""
+    })
+  });
+}
+
 /** @typedef {{ id: string, title: string, originalTitle: string, imdb: number, ageRating: string, year: number, countries: string[], genres: string[], moods: string[], era: string, poster: { type: string, src: string|null, aspectRatio: string }, description: string }} Movie */
 
 const EPOCH_MAP = {
@@ -869,18 +883,14 @@ function getRecommendationFromApi(options) {
     app.querySelector('#btn-try-other-filters').addEventListener('click', renderMoodScreen);
   }
 
-  function sendFeedbackToGoogle(rating, text) {
-    fetch('https://docs.google.com/forms/d/e/1FAIpQLSdKzsSIUqjkuYpxOP1CjllnDerG9kMW7YYBNXiF-WG4cQhKNQ/formResponse', {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: new URLSearchParams({
-        'entry.1289232695': String(rating),
-        'entry.53559483': text || ''
-      })
-    });
+  function closeFeedbackModal() {
+    var overlay = document.querySelector('.feedback-overlay');
+    if (overlay) {
+      overlay.style.opacity = '0';
+      setTimeout(function () {
+        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      }, 200);
+    }
   }
 
   function openFeedbackModal() {
@@ -890,6 +900,12 @@ function getRecommendationFromApi(options) {
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-label', 'Обратная связь');
     overlay.innerHTML = '<div class="feedback-modal"><button type="button" class="feedback-close-btn" aria-label="Закрыть">&times;</button><h3 class="feedback-title">Как тебе подборка?</h3><div class="feedback-stars"></div><textarea class="feedback-textarea" placeholder="Комментарий (необязательно)" rows="3"></textarea><button type="button" class="btn-primary feedback-submit-btn">Отправить</button></div>';
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay) {
+        sessionStorage.setItem('feedback_closed', 'true');
+        closeFeedbackModal();
+      }
+    });
     var modal = overlay.querySelector('.feedback-modal');
     var starsContainer = overlay.querySelector('.feedback-stars');
     var textareaEl = overlay.querySelector('.feedback-textarea');
@@ -910,7 +926,7 @@ function getRecommendationFromApi(options) {
     }
     closeBtn.addEventListener('click', function () {
       sessionStorage.setItem('feedback_closed', 'true');
-      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      closeFeedbackModal();
     });
     submitBtn.addEventListener('click', function () {
       if (selectedRating == null) return;
@@ -924,7 +940,15 @@ function getRecommendationFromApi(options) {
       }
       sendFeedbackToGoogle(selectedRating, textareaEl ? textareaEl.value : '');
       sessionStorage.setItem('feedback_submitted', 'true');
-      modal.innerHTML = '<p class="feedback-thanks">Спасибо, что оценили, это важно для развития приложения ❤️</p>';
+      modal.innerHTML = '<button type="button" class="feedback-close-btn" aria-label="Закрыть">&times;</button><p class="feedback-thanks">Спасибо, что оценили, это важно для развития приложения ❤️</p>';
+      var successCloseBtn = modal.querySelector('.feedback-close-btn');
+      if (successCloseBtn) {
+        successCloseBtn.addEventListener('click', function () {
+          sessionStorage.setItem('feedback_closed', 'true');
+          closeFeedbackModal();
+        });
+      }
+      setTimeout(closeFeedbackModal, 2000);
     });
     document.body.appendChild(overlay);
   }

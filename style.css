@@ -977,6 +977,7 @@ body {
   align-items: center;
   justify-content: center;
   z-index: 9999;
+  transition: opacity 0.2s ease;
 }
 
 .feedback-modal {
@@ -992,7 +993,7 @@ body {
 .feedback-close-btn {
   position: absolute;
   top: 10px;
-  right: 14px;
+  right: 12px;
   background: none;
   border: none;
   color: #999;
@@ -1000,10 +1001,12 @@ body {
   cursor: pointer;
   line-height: 1;
   padding: 4px;
+  opacity: 0.7;
 }
 
 .feedback-close-btn:hover {
   color: #fff;
+  opacity: 1;
 }
 
 .feedback-title {
