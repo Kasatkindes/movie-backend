@@ -3,14 +3,17 @@
 const Groq = require('groq-sdk');
 
 const MODEL = 'llama-3.1-8b-instant';
-const EXCLUDE_MAX = 5;
+const EXCLUDE_MAX = 10;
 const SESSION_HISTORY_MAX = 100;
 
-/** In-memory session storage: sessionId -> array of normalized titles (shown to user in this session). */
+/** Session history: sessionId -> array of original_title (exact strings) of all movies shown. Backend-only, in-memory. */
 const sessionStore = new Map();
 
-/** Per-session queue of pre-fetched recommendations (up to 5). One LLM call fills the queue; each request pops one. */
+/** Per-session queue of pre-fetched recommendations. Refill via LLM when empty. */
 const sessionQueue = new Map();
+
+/** Per-session filter signature. When it changes, history and queue are reset. */
+const sessionParams = new Map();
 const BATCH_SIZE = 5;
 
 function normalizeTitle(s) {
@@ -23,16 +26,26 @@ function getSessionHistory(sessionId) {
   return Array.isArray(arr) ? arr : [];
 }
 
-function addToSessionHistory(sessionId, normalizedTitle) {
-  if (!sessionId || !normalizedTitle) return;
+/** Adds one original_title to history. Stores exact string; dedup by normalized comparison. */
+function addToSessionHistory(sessionId, originalTitle) {
+  if (!sessionId || originalTitle == null || !String(originalTitle).trim()) return;
+  var exact = String(originalTitle).trim();
   var arr = getSessionHistory(sessionId);
-  if (arr.indexOf(normalizedTitle) === -1) arr.push(normalizedTitle);
+  var norm = normalizeTitle(exact);
+  if (arr.some(function (t) { return normalizeTitle(t) === norm; })) return;
+  arr.push(exact);
   if (arr.length > SESSION_HISTORY_MAX) arr.splice(0, arr.length - SESSION_HISTORY_MAX);
   sessionStore.set(sessionId, arr);
 }
 
 function isInHistory(sessionId, normalizedTitle) {
-  return getSessionHistory(sessionId).indexOf(normalizedTitle) !== -1;
+  var arr = getSessionHistory(sessionId);
+  return arr.some(function (t) { return normalizeTitle(t) === normalizedTitle; });
+}
+
+/** Last EXCLUDE_MAX original_title strings for LLM exclude. Used only at refill. */
+function getExcludeList(sessionId) {
+  return getSessionHistory(sessionId).slice(-EXCLUDE_MAX);
 }
 
 const SYSTEM_PROMPT = `Ты — кинокуратор. Твоя задача: выбрать ОДИН фильм, который решает пользовательскую задачу, а не просто подходит по жанру или настроению.
@@ -133,37 +146,36 @@ MOOD: romance (Романтика)
 
 ---
 
-CRITICAL TITLE CONTRACT (ОБЯЗАТЕЛЕН):
-1. The model MUST return ONLY the original English title in the field original_title. There is NO "title" field — do not output localized or translated titles.
-2. The model MUST NOT translate movie titles into any other language.
-3. The model MUST NOT invent, approximate, localize or creatively reinterpret titles.
-4. If the model is not confident in the exact original title, it MUST choose a different movie.
-5. Returning an uncertain or made-up title is strictly forbidden.
-6. original_title: string — English, canonical movie title exactly as in IMDb/TMDB. No localized titles, no alternative titles, no explanations, no multiple options.
+НАЗВАНИЯ ФИЛЬМОВ (ОБЯЗАТЕЛЬНО):
+- original_title — оригинальное, каноническое название на английском (как в IMDb/TMDB).
+- ru_title — ТОЛЬКО официальное русское название: прокат, постеры, кинотеатры, IMDb/TMDB/Wikipedia. Никакого дословного или смыслового перевода, никаких придуманных или адаптированных названий. Если официального русского названия нет или ты не уверен в нём — верни ru_title = "очко". Это обязательно. Лучше "очко", чем неверное название.
+
+СТРОГО ЗАПРЕЩЕНО:
+- переводить название дословно или по смыслу;
+- придумывать или адаптировать русское название;
+- возвращать приблизительный или «логичный» перевод.
 
 ---
 
 Формат ответа (STRICT):
-Верни РОВНО 5 РАЗНЫХ фильмов. Только реальные фильмы (IMDb/TMDB). Строго один JSON без markdown и текста до/после.
-Фильмы в массиве НЕ должны повторяться. Разнообразие по жанрам/годам приветствуется.
-Поле "title" ЗАПРЕЩЕНО. Только original_title (английское каноническое название).
+Верни РОВНО 5 РАЗНЫХ фильмов. Строго один JSON без markdown и текста до/после. Не добавляй других полей.
 
 {
   "movies": [
     {
       "original_title": "Exact English canonical movie title",
+      "ru_title": "Официальное русское название ИЛИ очко",
       "year": 2010,
       "description": "Short description.",
       "rating": "7.5",
-      "country": "USA",
       "genres": "Drama",
       "ageLimit": "16+"
     }
   ]
 }
 
-- movies: массив из ровно 5 объектов. У каждого: original_title, year, description, rating, country, genres, ageLimit.
-- original_title: ТОЛЬКО точное каноническое название на английском (как в IMDb/TMDB). Никаких переводов, выдумок.
+Поля каждого элемента: original_title, ru_title, year, description, rating, genres, ageLimit. country — опционально.
+- ru_title: только официальное русское название; иначе строго "очко".
 - Список exclude — ЗАПРЕЩЕНО возвращать эти фильмы в массиве.`;
 
 function setCors(res) {
@@ -174,9 +186,13 @@ function setCors(res) {
 
 function toRecommendation(parsed) {
   var originalTitle = parsed && (parsed.original_title != null || parsed.originalTitle != null) ? String(parsed.original_title || parsed.originalTitle).trim() : '';
+  var ruTitle = parsed && (parsed.ru_title != null || parsed.ruTitle != null) ? String(parsed.ru_title || parsed.ruTitle).trim() : '';
+  if (ruTitle === 'очко' || !ruTitle) ruTitle = '';
+  var title = ruTitle || originalTitle;
   return {
-    title: originalTitle,
+    title: title,
     original_title: originalTitle,
+    ru_title: ruTitle || null,
     description: parsed && parsed.description != null ? String(parsed.description) : '',
     rating: parsed && parsed.rating != null ? String(parsed.rating) : '',
     year: (function () {
@@ -192,10 +208,11 @@ function toRecommendation(parsed) {
   };
 }
 
-/** Fallback when both LLM responses were duplicates. Same shape as toRecommendation output. Only English original_title. */
+/** Fallback when no valid recommendations from batch. Same shape as toRecommendation output. */
 var FALLBACK_RECOMMENDATION = {
-  title: 'The Shawshank Redemption',
+  title: 'Побег из Шоушенка',
   original_title: 'The Shawshank Redemption',
+  ru_title: 'Побег из Шоушенка',
   description: 'A banker sentenced to life in prison finds friendship and keeps hope alive.',
   rating: '9.3',
   year: 1994,
@@ -233,27 +250,34 @@ module.exports = async (req, res) => {
       sessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2, 12);
     }
 
+    var signature = JSON.stringify({ mood: mood || null, epoch: epoch || null, rating: rating || null, popularity: popularity || null });
+    var storedSignature = sessionParams.get(sessionId);
+    if (storedSignature !== undefined && storedSignature !== signature) {
+      sessionStore.delete(sessionId);
+      sessionQueue.delete(sessionId);
+    }
+    sessionParams.set(sessionId, signature);
+
     var queue = sessionQueue.get(sessionId);
     if (!Array.isArray(queue)) queue = [];
     if (queue.length > 0) {
       var next = queue.shift();
       sessionQueue.set(sessionId, queue);
-      addToSessionHistory(sessionId, normalizeTitle(next.original_title));
+      addToSessionHistory(sessionId, next.original_title);
       res.status(200).json({ recommendation: next, sessionId: sessionId });
       return;
     }
 
-    var history = getSessionHistory(sessionId);
+    var excludeList = getExcludeList(sessionId);
     var likedBlock = '';
     if (likedMovies.length > 0) {
       likedBlock = '\n\nUser liked these movies:\n• ' + likedMovies.slice(0, 30).join('\n• ') + '\n\nWhen generating recommendations, take these preferences slightly into account. Do not repeat the same movies.';
     }
 
-    function buildUserMessage(excludeList) {
+    function buildUserMessage(excludeTitles) {
       var excludePart = '';
-      if (Array.isArray(excludeList) && excludeList.length > 0) {
-        var lastN = excludeList.slice(-EXCLUDE_MAX);
-        excludePart = '\n\nНе включай в массив фильмы из списка (уже показаны в этой сессии): ' + lastN.join(', ') + '.';
+      if (Array.isArray(excludeTitles) && excludeTitles.length > 0) {
+        excludePart = '\n\nНе включай в массив фильмы из списка (уже показаны в этой сессии): ' + excludeTitles.join(', ') + '.';
       }
       return `Подбери 5 разных фильмов. Настроение: ${mood || 'любое'}. Эпоха: ${epoch || 'любая'}. Рейтинг: ${rating || 'любой'}. Популярность: ${popularity || 'любая'}.${excludePart}${likedBlock} Ответь только JSON в указанном формате (массив movies из 5 элементов).`;
     }
@@ -263,7 +287,7 @@ module.exports = async (req, res) => {
       model: MODEL,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserMessage(history) }
+        { role: 'user', content: buildUserMessage(excludeList) }
       ],
       response_format: { type: 'json_object' },
       temperature: 0.6,
@@ -294,13 +318,13 @@ module.exports = async (req, res) => {
       recommendations.push(rec);
     }
     if (recommendations.length === 0) {
-      addToSessionHistory(sessionId, normalizeTitle(FALLBACK_RECOMMENDATION.original_title));
+      addToSessionHistory(sessionId, FALLBACK_RECOMMENDATION.original_title);
       res.status(200).json({ recommendation: FALLBACK_RECOMMENDATION, sessionId: sessionId });
       return;
     }
     var one = recommendations.shift();
     sessionQueue.set(sessionId, recommendations);
-    addToSessionHistory(sessionId, normalizeTitle(one.original_title));
+    addToSessionHistory(sessionId, one.original_title);
     res.status(200).json({ recommendation: one, sessionId: sessionId });
   } catch (err) {
     console.error('GROQ ERROR:', err);
