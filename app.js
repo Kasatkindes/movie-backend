@@ -902,7 +902,7 @@ function getRecommendationFromApi(options) {
     overlay.innerHTML = '<div class="feedback-modal"><button type="button" class="feedback-close-btn" aria-label="Закрыть">&times;</button><h3 class="feedback-title">Как тебе подборка?</h3><div class="feedback-stars"></div><textarea class="feedback-textarea" placeholder="Комментарий (необязательно)" rows="3"></textarea><button type="button" class="btn-primary feedback-submit-btn">Отправить</button></div>';
     overlay.addEventListener('click', function (e) {
       if (e.target === overlay) {
-        sessionStorage.setItem('feedback_closed', 'true');
+        // sessionStorage.setItem('feedback_closed', 'true');
         closeFeedbackModal();
       }
     });
@@ -925,7 +925,7 @@ function getRecommendationFromApi(options) {
       starsContainer.appendChild(star);
     }
     closeBtn.addEventListener('click', function () {
-      sessionStorage.setItem('feedback_closed', 'true');
+      // sessionStorage.setItem('feedback_closed', 'true');
       closeFeedbackModal();
     });
     submitBtn.addEventListener('click', function () {
@@ -939,12 +939,12 @@ function getRecommendationFromApi(options) {
         });
       }
       sendFeedbackToGoogle(selectedRating, textareaEl ? textareaEl.value : '');
-      sessionStorage.setItem('feedback_submitted', 'true');
+      // sessionStorage.setItem('feedback_submitted', 'true');
       modal.innerHTML = '<button type="button" class="feedback-close-btn" aria-label="Закрыть">&times;</button><p class="feedback-thanks">Спасибо, что оценили, это важно для развития приложения ❤️</p>';
       var successCloseBtn = modal.querySelector('.feedback-close-btn');
       if (successCloseBtn) {
         successCloseBtn.addEventListener('click', function () {
-          sessionStorage.setItem('feedback_closed', 'true');
+          // sessionStorage.setItem('feedback_closed', 'true');
           closeFeedbackModal();
         });
       }
@@ -952,11 +952,12 @@ function getRecommendationFromApi(options) {
     });
     document.body.appendChild(overlay);
   }
+  window.openFeedbackModal = openFeedbackModal;
 
   /** Shared handler for "Поменяй": loading screen then fetch then show result (or fallbacks). */
   function onAnotherMovieClick() {
     generateCounter++;
-    if (generateCounter === 5 && sessionStorage.getItem('feedback_closed') !== 'true' && sessionStorage.getItem('feedback_submitted') !== 'true') {
+    if (generateCounter === 4) {
       openFeedbackModal();
     }
     if (window.plausible) {
@@ -1206,7 +1207,7 @@ function getRecommendationFromApi(options) {
 
   function onFindMovieClick() {
     generateCounter++;
-    if (generateCounter === 5 && sessionStorage.getItem('feedback_closed') !== 'true' && sessionStorage.getItem('feedback_submitted') !== 'true') {
+    if (generateCounter === 4) {
       openFeedbackModal();
     }
     if (window.plausible) {
