@@ -850,7 +850,16 @@ function getRecommendationFromApi(options) {
         var t = getRecommendationTitle(rec);
         if (t && sessionHistory.indexOf(t) === -1) sessionHistory.push(t);
       } else {
-        if (titleEl) titleEl.textContent = (rec.original_title != null ? String(rec.original_title) : '').trim() || '';
+        var hasOriginalTitle = rec.original_title != null && String(rec.original_title).trim() !== '';
+        if (!hasOriginalTitle) {
+          if (titleEl) titleEl.textContent = '';
+          if (descEl) descEl.textContent = 'Нет данных о фильме.';
+          if (imdbEl) imdbEl.style.display = 'none';
+          if (metaEl) metaEl.textContent = '';
+          return;
+        }
+        var displayTitle = String(rec.original_title).trim();
+        if (titleEl) titleEl.textContent = displayTitle;
         if (descEl) descEl.textContent = rec.description != null ? String(rec.description) : '';
         if (imdbEl) {
           var ratingSpan = imdbEl.querySelector('.imdb-badge__rating');
@@ -868,14 +877,8 @@ function getRecommendationFromApi(options) {
         var recMetaRest = [recAge, rec.year, recCountry, recGenres].filter(Boolean).join(' • ');
         if (metaEl) metaEl.textContent = recMetaRest;
         var btnFavorite = document.getElementById('btn-favorite');
-        if (titleEl) titleEl.textContent = (rec.original_title != null ? String(rec.original_title) : '').trim() || '';
-        if (!(rec.original_title != null && String(rec.original_title).trim())) {
-          if (titleEl) titleEl.textContent = '';
-          if (descEl) descEl.textContent = 'Нет данных о фильме.';
-        } else {
-        updateFavoriteButtonState(btnFavorite, rec.original_title != null ? String(rec.original_title) : '');
+        updateFavoriteButtonState(btnFavorite, displayTitle);
         if (backdropEl) {
-          var displayTitle = (rec.original_title != null && String(rec.original_title).trim()) ? String(rec.original_title).trim() : '';
           backdropEl.innerHTML = '';
           var skeleton = document.createElement('div');
           skeleton.className = 'poster-skeleton';
@@ -916,12 +919,10 @@ function getRecommendationFromApi(options) {
             });
           })(backdropEl, displayTitle, rec.year, displayTitle);
         }
-        if (rec.original_title != null && String(rec.original_title).trim()) {
-          state.viewedMovies.push(String(rec.original_title).trim());
-          try {
-            localStorage.setItem(VIEWED_MOVIES_KEY, JSON.stringify(state.viewedMovies));
-          } catch (e) {}
-        }
+        state.viewedMovies.push(displayTitle);
+        try {
+          localStorage.setItem(VIEWED_MOVIES_KEY, JSON.stringify(state.viewedMovies));
+        } catch (e) {}
         var t = getRecommendationTitle(rec);
         if (t && sessionHistory.indexOf(t) === -1) sessionHistory.push(t);
       }
@@ -938,9 +939,10 @@ function getRecommendationFromApi(options) {
    */
   function renderMovieScreen(movie) {
     var poster = movie && movie.poster;
+    var displayTitle = (movie && (movie.original_title || movie.originalTitle || movie.title)) ? String(movie.original_title || movie.originalTitle || movie.title) : '';
     var posterHtml = (poster && poster.type === 'image' && poster.src)
       ? '<img src="' + escapeHtml(poster.src) + '" alt="">'
-      : escapeHtml(movie.title);
+      : escapeHtml(displayTitle);
     var countriesStr = movie.countries && movie.countries.length ? movie.countries.join(', ') : '';
     var genresStr = movie.genres && movie.genres.length ? movie.genres.join(', ') : '';
     var metaRest = [movie.ageRating, movie.year, countriesStr, genresStr].filter(Boolean).join(' • ');
@@ -958,7 +960,7 @@ function getRecommendationFromApi(options) {
             '<span id="result-meta" class="result-meta">' + escapeHtml(metaRest) + '</span>' +
           '</div>' +
           '<div class="result-desc-card">' +
-            '<h2 id="result-title" class="result-card-title">' + escapeHtml(movie.title) + '</h2>' +
+            '<h2 id="result-title" class="result-card-title">' + escapeHtml(displayTitle) + '</h2>' +
             '<p id="result-description" class="result-description">' + escapeHtml(movie.description) + '</p>' +
           '</div>' +
         '</main>' +
@@ -996,7 +998,7 @@ function getRecommendationFromApi(options) {
     });
 
     var btnFavorite = app.querySelector('#btn-favorite');
-    updateFavoriteButtonState(btnFavorite, movie.title);
+    updateFavoriteButtonState(btnFavorite, displayTitle);
     if (btnFavorite) {
       btnFavorite.addEventListener('click', function () {
         var titleEl = document.getElementById('result-title');
