@@ -833,15 +833,20 @@ function getRecommendationFromApi(options) {
         return;
       }
       fetchMovieBackdrop(rec.original_title, rec.year).then(function (tmdbResult) {
-        var finalTitle = (tmdbResult.matchedTitle && String(tmdbResult.matchedTitle).trim()) ? tmdbResult.matchedTitle.trim() : null;
+        var finalTitle = (tmdbResult.matchedTitle && String(tmdbResult.matchedTitle).trim())
+          ? tmdbResult.matchedTitle.trim()
+          : (rec.original_title && String(rec.original_title).trim()
+              ? String(rec.original_title).trim()
+              : null);
         var finalPosterUrl = (tmdbResult.url && tmdbResult.url !== FALLBACK_BACKDROP_URL) ? tmdbResult.url : null;
-        var description = (tmdbResult.overview && String(tmdbResult.overview).trim()) ? tmdbResult.overview.trim() : 'Описание отсутствует.';
+        var description = (tmdbResult.overview && String(tmdbResult.overview).trim()) ? tmdbResult.overview.trim() : '';
         doFadeOutThen(function () {
           renderMovieCardFinal({ title: finalTitle, posterUrl: finalPosterUrl, description: description, rec: rec });
         });
       }).catch(function () {
+        var fallbackTitle = (rec.original_title && String(rec.original_title).trim()) ? String(rec.original_title).trim() : null;
         doFadeOutThen(function () {
-          renderMovieCardFinal({ title: null, posterUrl: null, description: 'Описание отсутствует.', rec: rec });
+          renderMovieCardFinal({ title: fallbackTitle, posterUrl: null, description: '', rec: rec });
         });
       });
       return;
@@ -1006,9 +1011,12 @@ function getRecommendationFromApi(options) {
    * @param {{ title: string|null, posterUrl: string|null, description: string, rec: object|null }} finalData
    */
   function renderMovieCardFinal(finalData) {
-    var displayTitle = (finalData.title && String(finalData.title).trim()) ? String(finalData.title).trim() : 'Название недоступно';
+    var displayTitle = (finalData.title && String(finalData.title).trim())
+      ? String(finalData.title).trim()
+      : (finalData.rec && finalData.rec.original_title && String(finalData.rec.original_title).trim())
+          ? String(finalData.rec.original_title).trim()
+          : 'Название недоступно';
     var desc = (finalData.description && String(finalData.description).trim()) ? String(finalData.description).trim() : '';
-    if (!desc) desc = 'Описание отсутствует.';
     var posterHtml = (finalData.posterUrl && finalData.posterUrl !== FALLBACK_BACKDROP_URL)
       ? '<img src="' + escapeHtml(finalData.posterUrl) + '" alt="" class="result-backdrop__img loaded">'
       : '<div class="result-backdrop__placeholder">🎬</div>';
