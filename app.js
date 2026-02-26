@@ -290,7 +290,7 @@ function fetchImageFromTmdbSearch(query, year) {
   if (!query || !String(query).trim()) return Promise.resolve(fallback);
   var q = encodeURIComponent(String(query).trim());
   var yearParam = year != null && year !== '' ? '&year=' + encodeURIComponent(String(year)) : '';
-  var url = 'https://api.themoviedb.org/3/search/movie?api_key=' + TMDB_API_KEY + '&query=' + q + yearParam;
+  var url = 'https://api.themoviedb.org/3/search/movie?api_key=' + TMDB_API_KEY + '&query=' + q + yearParam + '&language=ru-RU';
   return fetch(url)
     .then(function (res) { return res.ok ? res.json() : null; })
     .then(function (data) {
@@ -858,8 +858,8 @@ function getRecommendationFromApi(options) {
           if (metaEl) metaEl.textContent = '';
           return;
         }
-        var displayTitle = String(rec.original_title).trim();
-        if (titleEl) titleEl.textContent = displayTitle;
+        var fallbackDisplayTitle = String(rec.original_title).trim();
+        if (titleEl) titleEl.textContent = fallbackDisplayTitle;
         var desc = rec.description ? String(rec.description).trim() : '';
         if (!desc || desc.toLowerCase() === 'short description.') desc = 'Описание временно недоступно.';
         if (descEl) descEl.textContent = desc;
@@ -879,22 +879,24 @@ function getRecommendationFromApi(options) {
         var recMetaRest = [recAge, rec.year, recCountry, recGenres].filter(Boolean).join(' • ');
         if (metaEl) metaEl.textContent = recMetaRest;
         var btnFavorite = document.getElementById('btn-favorite');
-        updateFavoriteButtonState(btnFavorite, displayTitle);
+        updateFavoriteButtonState(btnFavorite, fallbackDisplayTitle);
         if (backdropEl) {
           backdropEl.innerHTML = '';
           var skeleton = document.createElement('div');
           skeleton.className = 'poster-skeleton';
           backdropEl.appendChild(skeleton);
-          (function (el, originalTitle, recYear, displayName) {
+          (function (el, originalTitle, recYear, titleElement, fallbackTitle) {
             fetchMovieBackdrop(originalTitle, recYear).then(function (result) {
               if (!el.parentNode) return;
               var urlToUse = result.url;
-              if (result.matchedTitle && !titlesMatch(displayName, result.matchedTitle)) {
-                console.error('TMDB title mismatch: got "' + result.matchedTitle + '" for recommendation "' + displayName + '". Showing placeholder.');
+              var displayTitle = (result.matchedTitle && String(result.matchedTitle).trim()) ? String(result.matchedTitle).trim() : fallbackTitle;
+              if (titleElement) titleElement.textContent = displayTitle;
+              if (result.matchedTitle && !titlesMatch(fallbackTitle, result.matchedTitle)) {
+                console.error('TMDB title mismatch: got "' + result.matchedTitle + '" for recommendation "' + fallbackTitle + '". Showing placeholder.');
                 urlToUse = FALLBACK_BACKDROP_URL;
               }
               var img = new Image();
-              img.alt = displayName || '';
+              img.alt = displayTitle || '';
               img.className = 'result-backdrop__img';
               img.onload = function () {
                 if (!el.parentNode) return;
@@ -907,7 +909,7 @@ function getRecommendationFromApi(options) {
                 el.innerHTML = '';
                 var fallbackEl = document.createElement('div');
                 fallbackEl.className = 'result-backdrop__placeholder';
-                fallbackEl.textContent = displayName || '🎬';
+                fallbackEl.textContent = displayTitle || '🎬';
                 el.appendChild(fallbackEl);
               };
               img.src = urlToUse;
@@ -916,12 +918,12 @@ function getRecommendationFromApi(options) {
               el.innerHTML = '';
               var fb = document.createElement('div');
               fb.className = 'result-backdrop__placeholder';
-              fb.textContent = displayName || '🎬';
+              fb.textContent = fallbackTitle || '🎬';
               el.appendChild(fb);
             });
-          })(backdropEl, displayTitle, rec.year, displayTitle);
+          })(backdropEl, rec.original_title, rec.year, titleEl, fallbackDisplayTitle);
         }
-        state.viewedMovies.push(displayTitle);
+        state.viewedMovies.push(fallbackDisplayTitle);
         try {
           localStorage.setItem(VIEWED_MOVIES_KEY, JSON.stringify(state.viewedMovies));
         } catch (e) {}

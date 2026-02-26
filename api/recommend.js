@@ -147,7 +147,7 @@ MOOD: romance (Романтика)
 
 CRITICAL TITLE CONTRACT (ОБЯЗАТЕЛЕН):
 1. The model MUST return ONLY the original English title in the field original_title. There is NO "title" field — do not output localized or translated titles.
-2. The model MUST NOT translate movie titles into any other language.
+2. The model MUST NOT translate movie titles into any language. No Russian titles, no ru_title, no localizations. Display titles come from TMDB only.
 3. The model MUST NOT invent, approximate, localize or creatively reinterpret titles.
 4. If the model is not confident in the exact original title, it MUST choose a different movie.
 5. Returning an uncertain or made-up title is strictly forbidden.
