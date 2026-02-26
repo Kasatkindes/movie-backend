@@ -858,7 +858,7 @@ function getRecommendationFromApi(options) {
           if (metaEl) metaEl.textContent = '';
           return;
         }
-        var displayTitle = (rec.ru_title && rec.ru_title !== 'очко') ? String(rec.ru_title).trim() : 'очко';
+        var displayTitle = String(rec.original_title).trim();
         if (titleEl) titleEl.textContent = displayTitle;
         if (descEl) descEl.textContent = rec.description != null ? String(rec.description) : '';
         if (imdbEl) {
@@ -917,7 +917,7 @@ function getRecommendationFromApi(options) {
               fb.textContent = displayName || '🎬';
               el.appendChild(fb);
             });
-          })(backdropEl, rec.original_title, rec.year, displayTitle);
+          })(backdropEl, displayTitle, rec.year, displayTitle);
         }
         state.viewedMovies.push(displayTitle);
         try {
@@ -939,7 +939,7 @@ function getRecommendationFromApi(options) {
    */
   function renderMovieScreen(movie) {
     var poster = movie && movie.poster;
-    var displayTitle = (movie && movie.ru_title && movie.ru_title !== 'очко') ? String(movie.ru_title).trim() : 'очко';
+    var displayTitle = (movie && (movie.original_title || movie.originalTitle || movie.title)) ? String(movie.original_title || movie.originalTitle || movie.title) : '';
     var posterHtml = (poster && poster.type === 'image' && poster.src)
       ? '<img src="' + escapeHtml(poster.src) + '" alt="">'
       : escapeHtml(displayTitle);
