@@ -193,7 +193,12 @@ Return ONLY one JSON object. No markdown. No text before or after.
 - Each object must include: original_title, year, rating, country, genres, ageLimit.
 - No description field.
 - Exclude list is strictly forbidden to appear in results.
+
+OUTPUT: Return ONLY a JSON object with key "movies" — an array of exactly 5 objects. Each object has ONLY one field: "title" (string, English canonical movie title as on IMDb/TMDB). No year, no rating, no description, no other fields.
+Example: { "movies": [ { "title": "Inception" }, { "title": "The Shawshank Redemption" }, ... ] }
 `;
+
+const TMDB_IMAGE_BASE = 'https://image.tmdb.org';
 
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -201,24 +206,50 @@ function setCors(res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 }
 
-function toRecommendation(parsed) {
-  var originalTitle = parsed && (parsed.original_title != null || parsed.originalTitle != null) ? String(parsed.original_title || parsed.originalTitle).trim() : '';
-  return {
-    title: originalTitle,
-    original_title: originalTitle,
-    description: '',
-    rating: parsed && parsed.rating != null ? String(parsed.rating) : '',
-    year: (function () {
-      if (!parsed) return null;
-      if (typeof parsed.year === 'number' && !isNaN(parsed.year)) return parsed.year;
-      if (parsed.year == null) return null;
-      var y = parseInt(String(parsed.year), 10);
-      return isNaN(y) ? null : y;
-    })(),
-    country: parsed && parsed.country != null ? String(parsed.country) : '',
-    genres: parsed && parsed.genres != null ? String(parsed.genres) : '',
-    ageLimit: parsed && parsed.ageLimit != null ? String(parsed.ageLimit) : ''
-  };
+/** Resolve one movie title via TMDB: search then /movie/{id} ru-RU. Returns canonical object or null. */
+async function resolveMovieViaTmdb(title, apiKey) {
+  if (!title || !String(title).trim() || !apiKey) return null;
+  var query = encodeURIComponent(String(title).trim());
+  var searchUrl = 'https://api.themoviedb.org/3/search/movie?api_key=' + apiKey + '&query=' + query + '&language=ru-RU';
+  try {
+    var searchRes = await fetch(searchUrl);
+    if (!searchRes.ok) return null;
+    var searchData = await searchRes.json();
+    if (!searchData.results || !searchData.results.length) return null;
+    var first = searchData.results[0];
+    var tmdbId = first.id;
+    if (tmdbId == null) return null;
+
+    var movieUrl = 'https://api.themoviedb.org/3/movie/' + tmdbId + '?api_key=' + apiKey + '&language=ru-RU';
+    var movieRes = await fetch(movieUrl);
+    if (!movieRes.ok) return null;
+    var movieData = await movieRes.json();
+
+    var posterPath = movieData.poster_path;
+    var backdropPath = movieData.backdrop_path;
+    var overview = movieData.overview && String(movieData.overview).trim() ? String(movieData.overview).trim() : '';
+    if (!posterPath && !backdropPath) return null;
+    if (!overview) return null;
+
+    var posterUrl = posterPath ? TMDB_IMAGE_BASE + '/t/p/w780' + posterPath : null;
+    var backdropUrl = backdropPath ? TMDB_IMAGE_BASE + '/t/p/w1280' + backdropPath : (posterPath ? TMDB_IMAGE_BASE + '/t/p/w780' + posterPath : null);
+    var year = movieData.release_date ? parseInt(String(movieData.release_date).split('-')[0], 10) : null;
+    if (year && isNaN(year)) year = null;
+    var rating = movieData.vote_average != null ? Number(movieData.vote_average) : null;
+
+    return {
+      tmdb_id: tmdbId,
+      title: movieData.title || movieData.original_title || title,
+      original_title: movieData.original_title || movieData.title || title,
+      overview: overview,
+      poster_url: posterUrl,
+      backdrop_url: backdropUrl,
+      year: year,
+      rating: rating != null && !isNaN(rating) ? String(Math.round(rating * 10) / 10) : null
+    };
+  } catch (e) {
+    return null;
+  }
 }
 
 module.exports = async (req, res) => {
@@ -234,6 +265,7 @@ module.exports = async (req, res) => {
       res.status(500).json({ error: 'GROQ_API_KEY not set', details: 'Check Groq API Key or Quota' });
       return;
     }
+    const tmdbApiKey = process.env.TMDB_API_KEY || '';
 
     let mood = null, epoch = null, rating = null, popularity = null, likedMovies = [], sessionId = null, globalHistory = [];
     const rawBody = req.body ?? {};
@@ -304,26 +336,33 @@ module.exports = async (req, res) => {
 
     var list = (raw && raw.movies && Array.isArray(raw.movies)) ? raw.movies : [];
     var globalNorm = (globalHistory || []).map(function (t) { return normalizeTitle(t); });
-    var seen = {};
-    var recommendations = [];
-    for (var i = 0; i < list.length && recommendations.length < BATCH_SIZE; i++) {
+    var seenTitles = {};
+    var titlesToResolve = [];
+    for (var i = 0; i < list.length && titlesToResolve.length < BATCH_SIZE; i++) {
       var item = list[i];
-      var rec = toRecommendation(item);
-      if (!rec.original_title || !String(rec.original_title).trim()) continue;
-      if (containsCyrillic(rec.original_title)) continue;
-      var key = normalizeTitle(rec.original_title);
-      if (seen[key]) continue;
-      seen[key] = true;
+      var title = (item && (item.title != null || item.original_title != null)) ? String(item.title || item.original_title).trim() : '';
+      if (!title) continue;
+      if (containsCyrillic(title)) continue;
+      var key = normalizeTitle(title);
+      if (seenTitles[key]) continue;
+      seenTitles[key] = true;
       if (isInHistory(sessionId, key)) continue;
       if (globalNorm.indexOf(key) !== -1) continue;
-      recommendations.push(rec);
+      titlesToResolve.push(title);
     }
-    if (recommendations.length === 0) {
-      res.status(200).json({ recommendations: [], sessionId: sessionId });
-      return;
+
+    var recommendations = [];
+    var seenIds = {};
+    for (var t = 0; t < titlesToResolve.length; t++) {
+      var resolved = await resolveMovieViaTmdb(titlesToResolve[t], tmdbApiKey);
+      if (!resolved) continue;
+      if (seenIds[resolved.tmdb_id]) continue;
+      seenIds[resolved.tmdb_id] = true;
+      recommendations.push(resolved);
     }
+
     for (var r = 0; r < recommendations.length; r++) {
-      addToSessionHistory(sessionId, normalizeTitle(recommendations[r].original_title));
+      addToSessionHistory(sessionId, normalizeTitle(recommendations[r].title));
     }
     res.status(200).json({ recommendations: recommendations, sessionId: sessionId });
   } catch (err) {

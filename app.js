@@ -280,159 +280,8 @@ function pickMovie(options) {
   return { movie: movie, reason: 'Подобрано по вашему настроению' };
 }
 
-/** Backend must return { recommendation: { title, description, rating, year, country, genres, ageLimit } }, optional sessionId for session history. */
 var API_RECOMMEND_URL = '/api/recommend';
 var apiSessionId = null;
-
-var TMDB_API_KEY = '7d7983a4442f13b2d23ad89cfea14294';
-var TMDB_BACKDROP_BASE = 'https://image.tmdb.org/t/p/w780';
-var TMDB_POSTER_BASE = 'https://image.tmdb.org/t/p/w500';
-var FALLBACK_BACKDROP_URL = 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=780&q=80';
-
-/**
- * Normalizes string for title comparison (lowercase, trim, collapse spaces).
- * @param {string} s
- * @returns {string}
- */
-function normalizeTitle(s) {
-  if (s == null) return '';
-  return String(s).toLowerCase().trim().replace(/\s+/g, ' ');
-}
-
-/**
- * Strict title matching: exact match or exact base before colon only. No includes().
- * @param {string} a - e.g. recommendation title
- * @param {string} b - e.g. TMDB matched title
- * @returns {boolean}
- */
-function titlesMatch(a, b) {
-  if (!a || !b) return false;
-
-  var na = normalizeTitle(a).trim();
-  var nb = normalizeTitle(b).trim();
-
-  if (!na || !nb) return false;
-
-  if (na === nb) return true;
-
-  var naBase = na.split(':')[0].trim();
-  var nbBase = nb.split(':')[0].trim();
-
-  if (naBase === nbBase) return true;
-
-  return false;
-}
-
-/**
- * Performs TMDB search with deterministic sequential strategy:
- * 1) ru-RU with year
- * 2) ru-RU without year
- * Returns one matched item with image and overview or fallback.
- * @param {string} query - search query (e.g. original title)
- * @param {string|number} year
- * @returns {Promise<{ url: string, matchedTitle: string, overview: string }>}
- */
-async function fetchImageFromTmdbSearch(query, year) {
-  var fallback = { url: FALLBACK_BACKDROP_URL, matchedTitle: '', overview: '' };
-  if (!query || !String(query).trim()) return Promise.resolve(fallback);
-
-  async function searchOnce(withYear) {
-    var baseQuery = String(query).trim();
-    var url =
-      'https://api.themoviedb.org/3/search/movie' +
-      '?api_key=' + TMDB_API_KEY +
-      '&query=' + encodeURIComponent(baseQuery) +
-      '&language=ru-RU';
-
-    if (withYear && year) {
-      url += '&year=' + encodeURIComponent(String(year));
-    }
-
-    try {
-      var res = await fetch(url);
-      if (!res.ok) return null;
-      var data = await res.json();
-      if (!data || !Array.isArray(data.results) || data.results.length === 0) return null;
-      for (var i = 0; i < data.results.length; i++) {
-        var candidate = data.results[i];
-
-        var titleOk =
-          titlesMatch(baseQuery, candidate.original_title) ||
-          titlesMatch(baseQuery, candidate.title);
-
-        if (!titleOk) {
-          console.log('Title mismatch:');
-          console.log('LLM:', baseQuery);
-          console.log('TMDB candidate:', candidate.original_title || candidate.title);
-          continue;
-        }
-
-        // Strict year validation if year provided
-        if (year && candidate.release_date) {
-          var candidateYear = parseInt(candidate.release_date.split('-')[0], 10);
-          var requestedYear = typeof year === 'number' ? year : parseInt(String(year), 10);
-          if (!isNaN(candidateYear) && !isNaN(requestedYear) && candidateYear !== requestedYear) {
-            continue;
-          }
-        }
-
-        return candidate;
-      }
-      return null;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  var item = await searchOnce(true);
-  if (!item) {
-    item = await searchOnce(false);
-  }
-
-  if (!item) {
-    return null;
-  }
-
-  var imageUrl = null;
-  if (item.backdrop_path) {
-    imageUrl = TMDB_BACKDROP_BASE + item.backdrop_path;
-  } else if (item.poster_path) {
-    imageUrl = TMDB_POSTER_BASE + item.poster_path;
-  } else {
-    imageUrl = FALLBACK_BACKDROP_URL;
-  }
-
-  var finalOverview = '';
-  if (item.overview && String(item.overview).trim()) {
-    finalOverview = String(item.overview).trim();
-  } else {
-    finalOverview = '';
-  }
-
-  return {
-    url: imageUrl,
-    matchedTitle: item.title || String(query).trim(),
-    overview: finalOverview
-  };
-}
-
-/**
- * Fetches movie backdrop, title and overview from TMDB. Search ONLY by original_title + year.
- * Returns { url, matchedTitle, overview }.
- * @param {string} originalTitle - English/original title (for TMDB)
- * @param {string|number} year
- * @returns {Promise<{ url: string, matchedTitle: string, overview: string }>}
- */
-function fetchMovieBackdrop(originalTitle, year) {
-  var fallback = { url: FALLBACK_BACKDROP_URL, matchedTitle: '', overview: '' };
-  if (!originalTitle || String(originalTitle).trim() === '') return Promise.resolve(fallback);
-  return fetchImageFromTmdbSearch(String(originalTitle).trim(), year)
-    .then(function (res) { return res || fallback; })
-    .catch(function () {
-      console.error('❌ TMDB FAILED:', originalTitle, year);
-      return fallback;
-    });
-}
 
 /** Calls external backend. Returns { recommendations: Movie[], sessionId } or on failure { _error: true, status, message }. */
 function getRecommendationFromApi(options) {
@@ -530,8 +379,8 @@ function getRecommendationFromApi(options) {
   const GLOBAL_HISTORY_KEY = 'globalHistory';
   const HAS_SEEN_LIKE_TOOLTIP_KEY = 'hasSeenLikeTooltip';
 
-  var recommendationQueue = [];
-  var currentRecommendationIndex = 0;
+  var movieQueue = [];
+  var currentIndex = 0;
 
   function getGlobalHistory() {
     try {
@@ -645,33 +494,12 @@ function getRecommendationFromApi(options) {
     };
     return (function attempt(n) {
       return getRecommendationFromApi(fullOpts).then(function (result) {
-        console.group('🎬 LLM RAW RESPONSE');
-        console.log('Full result:', result);
-        if (result && result.recommendations) {
-          console.log('Recommendations count:', result.recommendations.length);
-          console.log('Recommendations:', result.recommendations);
-          var titles = result.recommendations.map(function (r) { return r && r.original_title; });
-          var duplicates = titles.filter(function (t, i) { return titles.indexOf(t) !== i && t != null; });
-          if (duplicates.length) {
-            console.warn('⚠️ DUPLICATES IN LLM BATCH:', duplicates);
-          }
-        }
-        console.groupEnd();
-
         if (!result || result._error) {
           var isServerError = result && (result.status === 0 || result.status >= 500);
           if (n >= maxRetries || !isServerError) {
             return result;
           }
           return new Promise(function (res) { setTimeout(res, 800); }).then(function () { return attempt(n + 1); });
-        }
-        var recs = result.recommendations;
-        if (Array.isArray(recs)) {
-          for (var r = 0; r < recs.length; r++) {
-            if (recs[r] && recs[r].original_title) {
-              addToGlobalHistory(recs[r].original_title);
-            }
-          }
         }
         return result;
       });
@@ -925,15 +753,39 @@ function getRecommendationFromApi(options) {
           renderServerErrorScreen('Сервис временно недоступен. Попробуйте ещё раз.');
           return;
         }
-        recommendationQueue = result.recommendations || [];
-        currentRecommendationIndex = 0;
-        if (!recommendationQueue.length) {
-          renderServerErrorScreen('Не удалось получить рекомендации.');
+        movieQueue = result.recommendations || [];
+        currentIndex = 0;
+        if (!movieQueue.length) {
+          renderServerErrorScreen('Сервис временно недоступен. Попробуйте снова.');
           return;
         }
-        renderMovieFromQueue();
+        renderMovie(movieQueue[0]);
       });
     });
+  }
+
+  /** Shown when user has seen all movies in current batch. Disables "Поменяй" and shows message. */
+  function renderNoMoreInBatchScreen() {
+    var message = 'В этой подборке больше нет фильмов. Нажмите «Подобрать фильм» для новой подборки.';
+    app.innerHTML =
+      '<section class="screen screen-movie screen-no-more">' +
+        '<header class="result-header">' +
+          '<button type="button" id="btn-back-no-more" class="btn-back-inline">' +
+            '<img src="assets/icons/back.svg" alt="" width="24" height="24">' +
+          '</button>' +
+          '<h1 class="result-header-title">Выбрать настроение</h1>' +
+        '</header>' +
+        '<main class="result-content">' +
+          '<div class="no-more-message">' + escapeHtml(message) + '</div>' +
+        '</main>' +
+        '<footer class="result-footer">' +
+          '<button type="button" id="btn-new-batch" class="btn-primary">' +
+            '<span>Подобрать фильм</span>' +
+          '</button>' +
+        '</footer>' +
+      '</section>';
+    app.querySelector('#btn-back-no-more').addEventListener('click', renderMoodScreen);
+    app.querySelector('#btn-new-batch').addEventListener('click', onFindMovieClick);
   }
 
   function renderNoMoreVariantsScreen(movieTitle, overrideMessage) {
@@ -1031,53 +883,30 @@ function getRecommendationFromApi(options) {
   }
   window.openFeedbackModal = openFeedbackModal;
 
-  /** Renders the movie at currentRecommendationIndex from recommendationQueue (fetches TMDB, then renders card). */
-  function renderMovieFromQueue() {
-    var rec = recommendationQueue[currentRecommendationIndex];
-    if (!rec) return;
-
+  /** Renders one ready movie object (backend-resolved). No TMDB calls. Skips if missing critical data. */
+  function renderMovie(movie) {
+    if (!movie || !(movie.title && String(movie.title).trim())) return;
     if (loadingPhraseIntervalId) {
       clearInterval(loadingPhraseIntervalId);
       loadingPhraseIntervalId = null;
     }
-
-    console.group('🔎 TMDB SEARCH INPUT');
-    console.log('Original title:', rec.original_title);
-    console.log('Year:', rec.year);
-    console.groupEnd();
-
-    fetchMovieBackdrop(rec.original_title, rec.year)
-      .then(function (tmdbResult) {
-        console.group('📦 TMDB RESULT');
-        console.log('Matched title:', tmdbResult && tmdbResult.matchedTitle);
-        console.log('Poster URL:', tmdbResult && tmdbResult.url);
-        console.log('Overview length:', tmdbResult && tmdbResult.overview ? tmdbResult.overview.length : 0);
-        console.log('Full TMDB result:', tmdbResult);
-        console.groupEnd();
-
-        var finalTitle = (tmdbResult.matchedTitle && String(tmdbResult.matchedTitle).trim())
-          ? tmdbResult.matchedTitle.trim()
-          : (rec.original_title || 'Название недоступно');
-        var finalPosterUrl = (tmdbResult.url && tmdbResult.url !== FALLBACK_BACKDROP_URL) ? tmdbResult.url : null;
-        var finalDescription = (tmdbResult.overview && String(tmdbResult.overview).trim()) ? tmdbResult.overview.trim() : (rec.description || '');
-        renderMovieCardFinal({
-          title: finalTitle,
-          posterUrl: finalPosterUrl,
-          description: finalDescription,
-          rec: rec
-        });
-      })
-      .catch(function () {
-        renderMovieCardFinal({
-          title: rec.original_title || null,
-          posterUrl: null,
-          description: (rec.description && String(rec.description).trim()) ? String(rec.description).trim() : '',
-          rec: rec
-        });
-      });
+    var displayTitle = String(movie.title).trim();
+    var overview = (movie.overview && String(movie.overview).trim()) ? String(movie.overview).trim() : '';
+    var posterUrl = (movie.poster_url && String(movie.poster_url).trim()) ? movie.poster_url : (movie.backdrop_url && String(movie.backdrop_url).trim() ? movie.backdrop_url : null);
+    var year = movie.year;
+    var ratingVal = (movie.rating != null && movie.rating !== '') ? String(movie.rating) : '';
+    if (movie.original_title && String(movie.original_title).trim()) {
+      addToGlobalHistory(String(movie.original_title).trim());
+    }
+    renderMovieCardFinal({
+      title: displayTitle,
+      posterUrl: posterUrl,
+      description: overview,
+      rec: { title: displayTitle, original_title: movie.original_title || displayTitle, year: year, rating: ratingVal }
+    });
   }
 
-  /** Handler for "Поменяй": show next from queue or fetch new batch. */
+  /** Handler for "Поменяй": show next from queue or show "No more in batch" and disable. */
   function onAnotherMovieClick() {
     generateCounter++;
     if (generateCounter >= 5 && canShowFeedback() && !sessionStorage.getItem('feedback_shown_this_session')) {
@@ -1099,31 +928,13 @@ function getRecommendationFromApi(options) {
       } catch (e) {}
     }
 
-    currentRecommendationIndex++;
+    currentIndex++;
 
-    if (currentRecommendationIndex < recommendationQueue.length) {
-      renderLoadingScreen();
-      setTimeout(function () {
-        renderMovieFromQueue();
-      }, 200);
+    if (currentIndex >= movieQueue.length) {
+      renderNoMoreInBatchScreen();
       return;
     }
-
-    renderLoadingScreen();
-    var opts = { mood: state.selectedMood || 'neutral', epoch: state.selectedEpoch, rating: state.selectedRating, popularity: state.selectedPopularity };
-    getRecommendationWithRetrySafe(opts, 1).then(function (result) {
-      if (!result || result._error) {
-        renderServerErrorScreen('Сервис временно недоступен.');
-        return;
-      }
-      recommendationQueue = result.recommendations || [];
-      currentRecommendationIndex = 0;
-      if (!recommendationQueue.length) {
-        renderServerErrorScreen('Не удалось получить рекомендации.');
-        return;
-      }
-      renderMovieFromQueue();
-    });
+    renderMovie(movieQueue[currentIndex]);
   }
 
   /**
@@ -1142,8 +953,8 @@ function getRecommendationFromApi(options) {
       ? String(finalData.description).trim()
       : baseDesc;
 
-    var posterUrlRaw = finalData.posterUrl || FALLBACK_BACKDROP_URL;
-    var hasRealImage = posterUrlRaw && posterUrlRaw !== FALLBACK_BACKDROP_URL;
+    var posterUrlRaw = finalData.posterUrl || null;
+    var hasRealImage = posterUrlRaw && String(posterUrlRaw).trim();
     var posterHtml = hasRealImage
       ? '<img src="' + escapeHtml(posterUrlRaw) + '" alt="" class="result-backdrop__img loaded">'
       : '<div class="result-backdrop__placeholder">🎬</div>';
@@ -1388,13 +1199,13 @@ function getRecommendationFromApi(options) {
         renderServerErrorScreen('Сервис временно недоступен. Попробуйте ещё раз.');
         return;
       }
-      recommendationQueue = result.recommendations || [];
-      currentRecommendationIndex = 0;
-      if (!recommendationQueue.length) {
-        renderServerErrorScreen('Не удалось получить рекомендации.');
+      movieQueue = result.recommendations || [];
+      currentIndex = 0;
+      if (!movieQueue.length) {
+        renderServerErrorScreen('Сервис временно недоступен. Попробуйте снова.');
         return;
       }
-      renderMovieFromQueue();
+      renderMovie(movieQueue[0]);
     });
   }
 
