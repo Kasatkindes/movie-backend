@@ -242,10 +242,13 @@ async function resolveMovieViaTmdb(title, apiKey, year) {
     var posterPath = movieData.poster_path;
     var backdropPath = movieData.backdrop_path;
     var overview = movieData.overview && String(movieData.overview).trim() ? String(movieData.overview).trim() : '';
-    if (!posterPath && !backdropPath) return null;
 
-    var posterUrl = posterPath ? TMDB_IMAGE_BASE + '/t/p/w780' + posterPath : null;
-    var backdropUrl = backdropPath ? TMDB_IMAGE_BASE + '/t/p/w1280' + backdropPath : (posterPath ? TMDB_IMAGE_BASE + '/t/p/w780' + posterPath : null);
+    var backdropUrl = movieData.backdrop_path
+      ? TMDB_IMAGE_BASE + '/t/p/w1280' + movieData.backdrop_path
+      : null;
+    var posterUrl = movieData.poster_path
+      ? TMDB_IMAGE_BASE + '/t/p/w780' + movieData.poster_path
+      : null;
     var year = movieData.release_date ? parseInt(String(movieData.release_date).split('-')[0], 10) : null;
     if (year && isNaN(year)) year = null;
     var rating = movieData.vote_average != null ? Number(movieData.vote_average) : null;

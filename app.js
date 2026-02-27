@@ -892,7 +892,15 @@ function getRecommendationFromApi(options) {
     }
     var displayTitle = String(movie.title).trim();
     var overview = (movie.overview && String(movie.overview).trim()) ? String(movie.overview).trim() : '';
-    var posterUrl = (movie.poster_url && String(movie.poster_url).trim()) ? movie.poster_url : (movie.backdrop_url && String(movie.backdrop_url).trim() ? movie.backdrop_url : null);
+    // Priority: 1. horizontal backdrop (16:9), 2. vertical poster (2:3), 3. placeholder
+    var posterUrl = null;
+    if (movie.backdrop_url && String(movie.backdrop_url).trim()) {
+      posterUrl = movie.backdrop_url;
+    } else if (movie.poster_url && String(movie.poster_url).trim()) {
+      posterUrl = movie.poster_url;
+    } else {
+      posterUrl = null;
+    }
     var year = movie.year;
     var ratingVal = (movie.rating != null && movie.rating !== '') ? String(movie.rating) : '';
     if (movie.original_title && String(movie.original_title).trim()) {
@@ -931,7 +939,7 @@ function getRecommendationFromApi(options) {
     currentIndex++;
 
     if (currentIndex >= movieQueue.length) {
-      renderNoMoreInBatchScreen();
+      onFindMovieClick();
       return;
     }
     renderMovie(movieQueue[currentIndex]);
