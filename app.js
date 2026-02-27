@@ -356,12 +356,22 @@ async function fetchImageFromTmdbSearch(query, year) {
       for (var i = 0; i < data.results.length; i++) {
         var candidate = data.results[i];
 
-        if (
+        var titleOk =
           titlesMatch(baseQuery, candidate.original_title) ||
-          titlesMatch(baseQuery, candidate.title)
-        ) {
-          return candidate;
+          titlesMatch(baseQuery, candidate.title);
+
+        if (!titleOk) continue;
+
+        // Strict year validation if year provided
+        if (year && candidate.release_date) {
+          var candidateYear = parseInt(candidate.release_date.split('-')[0], 10);
+          var requestedYear = typeof year === 'number' ? year : parseInt(String(year), 10);
+          if (!isNaN(candidateYear) && !isNaN(requestedYear) && candidateYear !== requestedYear) {
+            continue;
+          }
         }
+
+        return candidate;
       }
       return null;
     } catch (e) {
@@ -428,6 +438,7 @@ function getRecommendationFromApi(options) {
       popularity: options.popularity || null,
       exclude: options.exclude || [],
       likedMovies: options.likedMovies || [],
+      globalHistory: options.globalHistory || [],
       sessionId: options.sessionId != null ? options.sessionId : apiSessionId
     })
   }).then(function (res) {
@@ -442,7 +453,7 @@ function getRecommendationFromApi(options) {
   }).then(function (data) {
     if (data && data.sessionId) apiSessionId = data.sessionId;
     if (data && data._error) return data;
-    if (!data || !data.recommendation) return null;
+    if (!data) return null;
     return data;
   }).catch(function (e) {
     return { _error: true, status: 0, message: e && e.message };
@@ -508,7 +519,28 @@ function getRecommendationFromApi(options) {
 
   const VIEWED_MOVIES_KEY = 'movieAppViewedMovies';
   const LIKED_MOVIES_KEY = 'likedMovies';
+  const GLOBAL_HISTORY_KEY = 'globalHistory';
   const HAS_SEEN_LIKE_TOOLTIP_KEY = 'hasSeenLikeTooltip';
+
+  function getGlobalHistory() {
+    try {
+      var raw = localStorage.getItem(GLOBAL_HISTORY_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function addToGlobalHistory(originalTitle) {
+    if (!originalTitle || !String(originalTitle).trim()) return;
+    var arr = getGlobalHistory();
+    var key = String(originalTitle).trim();
+    if (arr.indexOf(key) !== -1) return;
+    arr.push(key);
+    try {
+      localStorage.setItem(GLOBAL_HISTORY_KEY, JSON.stringify(arr));
+    } catch (e) {}
+  }
 
   function getLikedMovies() {
     try {
@@ -590,7 +622,7 @@ function getRecommendationFromApi(options) {
   /** Запрашивает рекомендацию; при дубликате в sessionHistory автоматически повторяет запрос до нового фильма (макс. 3 попытки). */
   function fetchRecommendationWithRetry(opts, maxAttempts) {
     maxAttempts = maxAttempts == null ? 3 : maxAttempts;
-    opts = { mood: opts.mood, epoch: opts.epoch, rating: opts.rating, popularity: opts.popularity, exclude: sessionHistory.slice(0), likedMovies: getLikedMovies() };
+    opts = { mood: opts.mood, epoch: opts.epoch, rating: opts.rating, popularity: opts.popularity, exclude: sessionHistory.slice(0), likedMovies: getLikedMovies(), globalHistory: getGlobalHistory() };
     var attempt = 0;
 
     function tryOnce() {
@@ -601,6 +633,9 @@ function getRecommendationFromApi(options) {
         }
         if (!data || !data.recommendation) {
           return { data: data, opts: opts, exhausted: false };
+        }
+        if (data.recommendation && data.recommendation.original_title) {
+          addToGlobalHistory(data.recommendation.original_title);
         }
         var title = getRecommendationTitle(data.recommendation);
         if (!title || sessionHistory.indexOf(title) === -1) {

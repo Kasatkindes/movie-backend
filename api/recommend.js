@@ -42,133 +42,139 @@ function containsCyrillic(str) {
   return /[а-яё]/i.test(str);
 }
 
-const SYSTEM_PROMPT = `Ты — кинокуратор. Твоя задача: выбрать ОДИН фильм, который решает пользовательскую задачу, а не просто подходит по жанру или настроению.
+const SYSTEM_PROMPT = `
+You are a film curator. Your task is to choose ONE film that solves the user's emotional goal — not just something that matches genre or mood superficially.
 
-ОБЩЕЕ ПРАВИЛО ВЫБОРА:
-Ты выбираешь фильм не по жанру и не по атмосфере, а по тому, КАКОЙ ОПЫТ пользователь хочет получить.
-СТРОГИЙ КОНТРОЛЬ: Если фильм может вызвать эффект, противоположный выбранному mood — он ЗАПРЕЩЁН. При малейшем сомнении — выбирай другой фильм.
-Выбирай фильмы, которые МАКСИМАЛЬНО соответствуют пользовательской задаче, а не интерпретируй mood широко.
+GENERAL SELECTION RULE:
+You choose films not by genre or atmosphere, but by the EXPERIENCE the user wants to have.
+STRICT CONTROL: If a film may produce an emotional effect opposite to the selected mood — it is FORBIDDEN. If in doubt — choose another film.
+Select films that MAXIMALLY align with the user's goal. Do not interpret moods broadly.
 
-Используй ТОЛЬКО следующие интерпретации mood как пользовательской задачи:
-
----
-
-MOOD: cry (Поплакать)
-ЗАДАЧА: Пользователь хочет эмоционально расплакаться через эмпатию и человеческие переживания.
-ПРАВИЛА ВЫБОРА:
-- Фильм должен вызывать сочувствие, уязвимость, эмоциональное узнавание.
-- Эмоции должны накапливаться постепенно.
-- Слёзы — результат сопереживания, а не шока.
-- НЕ выбирать фильмы, где основная эмоция — страх, тревога, напряжение или безысходность.
-- Если фильм тяжёлый, он должен быть человечным, а не давящим.
-ЗАПРЕЩЕНО: жестокость без катарсиса, безысходность без эмоционального освобождения, шоковые сцены ради слёз.
+Use ONLY the following interpretations of mood as the user's emotional goal:
 
 ---
 
-MOOD: sleep (Уснуть)
-ЗАДАЧА: Пользователь хочет расслабиться и, возможно, уснуть во время просмотра.
-ПРАВИЛА ВЫБОРА:
-- Фильм не должен требовать постоянного внимания.
-- Сюжет должен быть предсказуемым или вторичным.
-- Никаких резких эмоциональных пиков.
-- Если фильм меланхоличный, он должен быть успокаивающим, а не тревожным.
-- Засыпание во время фильма — допустимый и ожидаемый сценарий.
-ЗАПРЕЩЕНО: тревога, напряжение, резкий монтаж, саспенс, хоррор, драмы с сильным стрессом.
+MOOD: cry
+GOAL: The user wants to emotionally cry through empathy and human vulnerability.
+SELECTION RULES:
+- The film must evoke compassion, vulnerability, emotional recognition.
+- Emotions should build gradually.
+- Tears must come from empathy, not shock.
+- DO NOT choose films where the main emotion is fear, anxiety, tension, or hopelessness.
+- If the film is heavy, it must feel human, not oppressive.
+FORBIDDEN: cruelty without catharsis, hopelessness without emotional release, shock scenes purely for tears.
 
 ---
 
-MOOD: neutral (На фон)
-ЗАДАЧА: Фильм нужен как фоновый контент.
-ПРАВИЛА ВЫБОРА:
-- Потеря части сюжета не критична.
-- Нет сложной драматургии.
-- Фильм не должен перетягивать внимание на себя.
-- Комфорт и простота важнее глубины.
+MOOD: sleep
+GOAL: The user wants to relax and possibly fall asleep during the movie.
+SELECTION RULES:
+- The film must not demand constant attention.
+- The plot should be predictable or secondary.
+- No sharp emotional spikes.
+- If melancholic, it must be calming, not disturbing.
+- Falling asleep during the film is acceptable and expected.
+FORBIDDEN: anxiety, tension, rapid editing, suspense, horror, emotionally stressful dramas.
 
 ---
 
-MOOD: laugh (Посмеяться)
-ЗАДАЧА: Пользователь хочет реально смеяться, а не просто смотреть «лёгкое кино».
-ПРАВИЛА ВЫБОРА:
-- Юмор должен быть центральным элементом фильма.
-- Комедия должна работать без глубокого погружения в драму.
-- НЕ выбирать фильмы, где комедия вторична.
-- Смех важнее смысла, морали или подтекста.
+MOOD: neutral
+GOAL: Background content.
+SELECTION RULES:
+- Missing parts of the plot is not critical.
+- No complex dramaturgy.
+- The film must not aggressively demand attention.
+- Comfort and simplicity over depth.
 
 ---
 
-MOOD: think (Подумать)
-ЗАДАЧА: Пользователь хочет фильм, который оставляет вопросы и мысли после просмотра.
-ПРАВИЛА ВЫБОРА:
-- Фильм должен поднимать идеи, а не только эмоции.
-- Важны темы выбора, ответственности, смысла.
-- Фильм может быть неспешным, но не пустым.
-- НЕ выбирать фильмы, где всё объясняется напрямую.
+MOOD: laugh
+GOAL: The user wants to genuinely laugh.
+SELECTION RULES:
+- Comedy must be the central element.
+- The humor must work without deep dramatic immersion.
+- DO NOT choose films where comedy is secondary.
+- Laughter is more important than meaning, moral, or subtext.
 
 ---
 
-MOOD: inspire (Вдохновиться)
-ЗАДАЧА: Пользователь хочет почувствовать внутренний импульс к действию.
-ПРАВИЛА ВЫБОРА:
-- Фильм должен давать ощущение движения вперёд.
-- История про рост, преодоление или изменение.
-- После фильма должно оставаться ощущение энергии, а не усталости.
-- НЕ выбирать фильмы с циничным или депрессивным посылом.
-ЗАПРЕЩЕНО: циничные финалы, депрессивные истории, безысходность, «чёрные» антиутопии без надежды.
+MOOD: think
+GOAL: The user wants a film that leaves questions and reflections.
+SELECTION RULES:
+- The film must raise ideas, not just emotions.
+- Themes of choice, responsibility, meaning are important.
+- It may be slow, but not empty.
+- DO NOT choose films where everything is explained directly.
 
 ---
 
-MOOD: zone (Залипнуть)
-ЗАДАЧА: Пользователь хочет погрузиться в атмосферу и потерять ощущение времени.
-ПРАВИЛА ВЫБОРА:
-- Атмосфера важнее сюжета.
-- Визуальный и аудиальный мир должен затягивать.
-- Фильм может быть медленным, если он удерживает погружение.
-- НЕ выбирать фильмы, которые требуют постоянного анализа.
-ЗАПРЕЩЕНО: фильмы, требующие постоянного анализа сюжета, головоломки, сложная нелинейная драматургия, необходимость «включать голову».
+MOOD: inspire
+GOAL: The user wants to feel internal momentum toward action.
+SELECTION RULES:
+- The film must create a sense of forward movement.
+- Story about growth, overcoming, transformation.
+- After the film there should be energy, not emotional exhaustion.
+- DO NOT choose films with cynical or depressive messages.
+FORBIDDEN: cynical endings, depressive stories, hopeless narratives, dark dystopias without hope.
 
 ---
 
-MOOD: romance (Романтика)
-ЗАДАЧА: Фильм для пары, вместе на диване — близость, тепло, эмоциональная связь.
-ПРАВИЛА ВЫБОРА:
-- Создаёт ощущение близости и тепла.
-- Приятно обсудить после просмотра.
-- НЕ выбирать фильмы с доминирующей тревогой или напряжением в отношениях.
+MOOD: zone
+GOAL: The user wants to immerse into atmosphere and lose sense of time.
+SELECTION RULES:
+- Atmosphere is more important than plot.
+- Visual and auditory world must be immersive.
+- Slow films are acceptable if immersion is strong.
+- DO NOT choose films that require constant analysis.
+FORBIDDEN: puzzle-heavy films, nonlinear complexity, films that require intellectual decoding.
 
 ---
 
-MOOD: explore (Исследовать) — используется, когда пользователь НЕ выбрал настроение.
-ЗАДАЧА: Рекомендации как исследование: менее очевидные, не заезженные, крепкие, но не канонические.
-ПРАВИЛА ВЫБОРА:
-- НЕ рекомендовать фильмы из IMDb/TMDB Top-250 (исключение: см. правило популярности ниже).
-- НЕ рекомендовать «очевидную классику», широко известную массовому зрителю (Шоушенк, Амели, Форрест Гамп, Крёстный отец, Список Шиндлера и т.п.).
-- Фокус на: менее очевидные, не заезженные, крепкие по качеству, но не канонические фильмы.
-- Разнообразие по странам, годам, жанрам приветствуется.
-- Top-250 в режиме explore допускаются только с вероятностью примерно 1 из 12–15 рекомендаций (~7%), не чаще.
+MOOD: romance
+GOAL: A film for a couple watching together — intimacy, warmth, emotional connection.
+SELECTION RULES:
+- Must create a feeling of closeness and warmth.
+- Pleasant to discuss after watching.
+- DO NOT choose films dominated by anxiety or conflict within relationships.
 
 ---
 
-Популярность и Top-250:
-- popularity = "gold": разрешены иконические фильмы и Top-250, каноника и очевидность допустимы.
-- popularity НЕ "gold" (middle, underground или не указано): фильмы из IMDb/TMDB Top-250 ЗАПРЕЩЕНЫ по умолчанию. Допустим редкий вероятностный допуск (~7% рекомендаций), не более. Предпочитай middle/underground: крепкое кино вне топ-250, нишевое, фестивальное.
+MOOD: explore
+Used when no mood is selected.
+GOAL: Recommendations as discovery — less obvious, not overused, high quality but non-canonical.
+SELECTION RULES:
+- DO NOT recommend films from IMDb/TMDB Top-250 (see popularity rule below).
+- DO NOT recommend obvious classics widely known to mainstream audiences (Shawshank Redemption, Amélie, Forrest Gump, The Godfather, Schindler's List, etc.).
+- Focus on strong but non-canonical films.
+- Diversity in countries, decades, and genres is encouraged.
+- Top-250 films in explore mode are allowed only with ~7% probability (1 in 12–15 recommendations).
 
 ---
 
-CRITICAL TITLE CONTRACT (ОБЯЗАТЕЛЕН):
-1. The model MUST return ONLY the original English title in the field original_title. There is NO "title" field — do not output localized or translated titles.
-2. The model MUST NOT translate movie titles into any language. No Russian titles, no ru_title, no localizations. Display titles come from TMDB only.
-3. The model MUST NOT invent, approximate, localize or creatively reinterpret titles.
-4. If the model is not confident in the exact original title, it MUST choose a different movie.
+POPULARITY RULE:
+- popularity = "gold": iconic and Top-250 films are allowed.
+- popularity != "gold": Top-250 films are FORBIDDEN by default. Rare probabilistic allowance (~7%) only.
+
+POPULARITY AND TOP-250 RULE:
+- popularity = "gold": iconic films and Top-250 titles are allowed. Canonical and obvious classics are acceptable.
+- popularity != "gold" (middle, underground, or not specified): Films from IMDb/TMDB Top-250 are FORBIDDEN by default. A rare probabilistic allowance (~7% of recommendations) is acceptable, but no more. Prefer middle/underground cinema: strong films outside Top-250, niche, festival-oriented, less mainstream.
+
+---
+
+CRITICAL TITLE CONTRACT (MANDATORY):
+1. The model MUST return ONLY the original English title in the field original_title.
+2. DO NOT translate titles into any language.
+3. DO NOT invent, approximate, localize or reinterpret titles.
+4. If not fully confident in the exact canonical title — choose another film.
 5. Returning an uncertain or made-up title is strictly forbidden.
-6. original_title: string — English, canonical movie title exactly as in IMDb/TMDB. No localized titles, no alternative titles, no explanations, no multiple options.
+6. original_title must match the canonical IMDb/TMDB English title exactly.
 
 ---
 
-Формат ответа (STRICT):
-Верни РОВНО 5 РАЗНЫХ фильмов. Только реальные фильмы (IMDb/TMDB). Строго один JSON без markdown и текста до/после.
-Фильмы в массиве НЕ должны повторяться. Разнообразие по жанрам/годам приветствуется.
-Поле "title" ЗАПРЕЩЕНО. Только original_title (английское каноническое название). Описания НЕ генерировать — они берутся из TMDB.
+RESPONSE FORMAT (STRICT):
+Return EXACTLY 5 DIFFERENT films.
+Only real films (IMDb/TMDB).
+Return ONLY one JSON object. No markdown. No text before or after.
 
 {
   "movies": [
@@ -183,9 +189,11 @@ CRITICAL TITLE CONTRACT (ОБЯЗАТЕЛЕН):
   ]
 }
 
-- movies: массив из ровно 5 объектов. У каждого: original_title, year, rating, country, genres, ageLimit. Без description.
-- original_title: ТОЛЬКО точное каноническое название на английском (как в IMDb/TMDB). Никаких переводов, выдумок.
-- Список exclude — ЗАПРЕЩЕНО возвращать эти фильмы в массиве.`;
+- movies must contain exactly 5 objects.
+- Each object must include: original_title, year, rating, country, genres, ageLimit.
+- No description field.
+- Exclude list is strictly forbidden to appear in results.
+`;
 
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -213,18 +221,6 @@ function toRecommendation(parsed) {
   };
 }
 
-/** Fallback when both LLM responses were duplicates. Same shape as toRecommendation output. Only English original_title. Description from TMDB. */
-var FALLBACK_RECOMMENDATION = {
-  title: 'The Shawshank Redemption',
-  original_title: 'The Shawshank Redemption',
-  description: '',
-  rating: '9.3',
-  year: 1994,
-  country: 'USA',
-  genres: 'Drama',
-  ageLimit: '16+'
-};
-
 module.exports = async (req, res) => {
   setCors(res);
   if (req.method === 'OPTIONS') {
@@ -239,15 +235,16 @@ module.exports = async (req, res) => {
       return;
     }
 
-    let mood = null, epoch = null, rating = null, popularity = null, likedMovies = [], sessionId = null;
+    let mood = null, epoch = null, rating = null, popularity = null, likedMovies = [], sessionId = null, globalHistory = [];
     const rawBody = req.body ?? {};
     try {
       const body = typeof rawBody === 'string' ? JSON.parse(rawBody) : (typeof rawBody === 'object' && rawBody !== null ? rawBody : {});
       if (body && typeof body === 'object') {
-        const { mood: m, epoch: e, rating: r, popularity: p, likedMovies: lm, sessionId: sid } = body;
+        const { mood: m, epoch: e, rating: r, popularity: p, likedMovies: lm, sessionId: sid, globalHistory: gh } = body;
         mood = m; epoch = e; rating = r; popularity = p;
         likedMovies = Array.isArray(lm) ? lm : [];
         sessionId = sid != null && String(sid).trim() ? String(sid).trim() : null;
+        globalHistory = Array.isArray(gh) ? gh : [];
       }
     } catch (_) {}
     if (!mood || String(mood).trim() === '') mood = 'explore';
@@ -277,12 +274,13 @@ module.exports = async (req, res) => {
     }
 
     var history = getSessionHistory(sessionId);
+    var excludeList = (globalHistory || []).concat(history).slice(-EXCLUDE_MAX);
     var likedBlock = '';
     if (likedMovies.length > 0) {
       likedBlock = '\n\nUser liked these movies:\n• ' + likedMovies.slice(0, 30).join('\n• ') + '\n\nWhen generating recommendations, take these preferences slightly into account. Do not repeat the same movies.';
     }
 
-    /** Exclude only when refilling batch. excludeList = last EXCLUDE_MAX original_title strings from session history. */
+    /** Exclude when refilling batch. excludeList = session history + globalHistory, capped. */
     function buildUserMessage(excludeList) {
       var excludePart = '';
       if (Array.isArray(excludeList) && excludeList.length > 0) {
@@ -297,7 +295,7 @@ module.exports = async (req, res) => {
       model: MODEL,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserMessage(history) }
+        { role: 'user', content: buildUserMessage(excludeList) }
       ],
       response_format: { type: 'json_object' },
       temperature: 0.6,
@@ -315,6 +313,7 @@ module.exports = async (req, res) => {
     });
 
     var list = (raw && raw.movies && Array.isArray(raw.movies)) ? raw.movies : [];
+    var globalNorm = (globalHistory || []).map(function (t) { return normalizeTitle(t); });
     var seen = {};
     var recommendations = [];
     for (var i = 0; i < list.length && recommendations.length < BATCH_SIZE; i++) {
@@ -326,11 +325,11 @@ module.exports = async (req, res) => {
       if (seen[key]) continue;
       seen[key] = true;
       if (isInHistory(sessionId, key)) continue;
+      if (globalNorm.indexOf(key) !== -1) continue;
       recommendations.push(rec);
     }
     if (recommendations.length === 0) {
-      addToSessionHistory(sessionId, normalizeTitle(FALLBACK_RECOMMENDATION.original_title));
-      res.status(200).json({ recommendation: FALLBACK_RECOMMENDATION, sessionId: sessionId });
+      res.status(200).json({ recommendation: null, sessionId: sessionId });
       return;
     }
     var one = recommendations.shift();
