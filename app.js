@@ -360,7 +360,12 @@ async function fetchImageFromTmdbSearch(query, year) {
           titlesMatch(baseQuery, candidate.original_title) ||
           titlesMatch(baseQuery, candidate.title);
 
-        if (!titleOk) continue;
+        if (!titleOk) {
+          console.log('Title mismatch:');
+          console.log('LLM:', baseQuery);
+          console.log('TMDB candidate:', candidate.original_title || candidate.title);
+          continue;
+        }
 
         // Strict year validation if year provided
         if (year && candidate.release_date) {
@@ -423,7 +428,10 @@ function fetchMovieBackdrop(originalTitle, year) {
   if (!originalTitle || String(originalTitle).trim() === '') return Promise.resolve(fallback);
   return fetchImageFromTmdbSearch(String(originalTitle).trim(), year)
     .then(function (res) { return res || fallback; })
-    .catch(function () { return fallback; });
+    .catch(function () {
+      console.error('❌ TMDB FAILED:', originalTitle, year);
+      return fallback;
+    });
 }
 
 /** Calls external backend. Returns { recommendations: Movie[], sessionId } or on failure { _error: true, status, message }. */
@@ -637,6 +645,19 @@ function getRecommendationFromApi(options) {
     };
     return (function attempt(n) {
       return getRecommendationFromApi(fullOpts).then(function (result) {
+        console.group('🎬 LLM RAW RESPONSE');
+        console.log('Full result:', result);
+        if (result && result.recommendations) {
+          console.log('Recommendations count:', result.recommendations.length);
+          console.log('Recommendations:', result.recommendations);
+          var titles = result.recommendations.map(function (r) { return r && r.original_title; });
+          var duplicates = titles.filter(function (t, i) { return titles.indexOf(t) !== i && t != null; });
+          if (duplicates.length) {
+            console.warn('⚠️ DUPLICATES IN LLM BATCH:', duplicates);
+          }
+        }
+        console.groupEnd();
+
         if (!result || result._error) {
           var isServerError = result && (result.status === 0 || result.status >= 500);
           if (n >= maxRetries || !isServerError) {
@@ -1020,8 +1041,20 @@ function getRecommendationFromApi(options) {
       loadingPhraseIntervalId = null;
     }
 
+    console.group('🔎 TMDB SEARCH INPUT');
+    console.log('Original title:', rec.original_title);
+    console.log('Year:', rec.year);
+    console.groupEnd();
+
     fetchMovieBackdrop(rec.original_title, rec.year)
       .then(function (tmdbResult) {
+        console.group('📦 TMDB RESULT');
+        console.log('Matched title:', tmdbResult && tmdbResult.matchedTitle);
+        console.log('Poster URL:', tmdbResult && tmdbResult.url);
+        console.log('Overview length:', tmdbResult && tmdbResult.overview ? tmdbResult.overview.length : 0);
+        console.log('Full TMDB result:', tmdbResult);
+        console.groupEnd();
+
         var finalTitle = (tmdbResult.matchedTitle && String(tmdbResult.matchedTitle).trim())
           ? tmdbResult.matchedTitle.trim()
           : (rec.original_title || 'Название недоступно');
