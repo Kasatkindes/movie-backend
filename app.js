@@ -300,17 +300,37 @@ function normalizeTitle(s) {
 }
 
 /**
- * Returns true if two titles are likely the same film (one contains the other or significant overlap).
+ * Returns true if two titles are likely the same film, with strict matching:
+ * - exact match
+ * - exact match of base title before colon
+ * - substring match only if both titles are reasonably long
  * @param {string} a - e.g. recommendation title
  * @param {string} b - e.g. TMDB matched title
  * @returns {boolean}
  */
 function titlesMatch(a, b) {
+  if (!a || !b) return false;
+
   var na = normalizeTitle(a);
   var nb = normalizeTitle(b);
-  if (!na || !nb) return true;
-  if (na.length < 2 || nb.length < 2) return true;
-  return na.indexOf(nb) !== -1 || nb.indexOf(na) !== -1;
+
+  if (!na || !nb) return false;
+
+  // точное совпадение
+  if (na === nb) return true;
+
+  // удаляем двоеточия и подзаголовки
+  var naBase = na.split(':')[0];
+  var nbBase = nb.split(':')[0];
+
+  if (naBase === nbBase) return true;
+
+  // проверяем включение, но только если длина достаточно большая
+  if (na.length > 5 && nb.length > 5) {
+    if (na.indexOf(nb) !== -1 || nb.indexOf(na) !== -1) return true;
+  }
+
+  return false;
 }
 
 /**
@@ -339,7 +359,15 @@ function fetchImageFromTmdbSearch(query, year) {
         if (!data || !Array.isArray(data.results) || data.results.length === 0) {
           return null;
         }
-        var item = data.results[0];
+        var item = null;
+        for (var i = 0; i < data.results.length; i++) {
+          if (titlesMatch(query, data.results[i].title)) {
+            item = data.results[i];
+            break;
+          }
+        }
+        if (!item) return null;
+
         var imageUrl = item.backdrop_path
           ? TMDB_BACKDROP_BASE + item.backdrop_path
           : item.poster_path
