@@ -354,8 +354,13 @@ async function fetchImageFromTmdbSearch(query, year) {
       var data = await res.json();
       if (!data || !Array.isArray(data.results) || data.results.length === 0) return null;
       for (var i = 0; i < data.results.length; i++) {
-        if (titlesMatch(baseQuery, data.results[i].title)) {
-          return data.results[i];
+        var candidate = data.results[i];
+
+        if (
+          titlesMatch(baseQuery, candidate.original_title) ||
+          titlesMatch(baseQuery, candidate.title)
+        ) {
+          return candidate;
         }
       }
       return null;
