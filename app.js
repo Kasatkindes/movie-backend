@@ -372,14 +372,47 @@ function fetchImageFromTmdbSearch(query, year) {
           ? TMDB_BACKDROP_BASE + item.backdrop_path
           : item.poster_path
             ? TMDB_POSTER_BASE + item.poster_path
-            : null;
+            : FALLBACK_BACKDROP_URL;
 
-        if (!imageUrl) return null;
+        var overview = (item.overview && String(item.overview).trim()) ? String(item.overview).trim() : '';
+
+        if (lang === 'ru-RU' && !overview) {
+          var enUrl = 'https://api.themoviedb.org/3/search/movie?api_key=' + TMDB_API_KEY +
+                      '&query=' + q + '&language=en-US';
+          return fetch(enUrl)
+            .then(function (res2) { return res2.ok ? res2.json() : null; })
+            .then(function (data2) {
+              if (data2 && Array.isArray(data2.results) && data2.results.length > 0) {
+                var enItem = null;
+                for (var j = 0; j < data2.results.length; j++) {
+                  if (titlesMatch(query, data2.results[j].title)) {
+                    enItem = data2.results[j];
+                    break;
+                  }
+                }
+                if (enItem && enItem.overview && String(enItem.overview).trim()) {
+                  overview = String(enItem.overview).trim();
+                }
+              }
+              return {
+                url: imageUrl,
+                matchedTitle: item.title || '',
+                overview: overview || ''
+              };
+            })
+            .catch(function () {
+              return {
+                url: imageUrl,
+                matchedTitle: item.title || '',
+                overview: overview || ''
+              };
+            });
+        }
 
         return {
           url: imageUrl,
           matchedTitle: item.title || '',
-          overview: item.overview || ''
+          overview: overview || ''
         };
       })
       .catch(function () { return null; });
