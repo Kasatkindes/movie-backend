@@ -207,16 +207,30 @@ function setCors(res) {
 }
 
 /** Resolve one movie title via TMDB: search then /movie/{id} ru-RU. Returns canonical object or null. */
-async function resolveMovieViaTmdb(title, apiKey) {
+async function resolveMovieViaTmdb(title, apiKey, year) {
   if (!title || !String(title).trim() || !apiKey) return null;
   var query = encodeURIComponent(String(title).trim());
-  var searchUrl = 'https://api.themoviedb.org/3/search/movie?api_key=' + apiKey + '&query=' + query + '&language=ru-RU';
+  var searchUrl = 'https://api.themoviedb.org/3/search/movie?api_key=' + apiKey + '&query=' + query;
+  if (year) searchUrl += '&year=' + year;
+  console.group('🔎 TMDB SEARCH');
+  console.log('Search title:', title);
+  console.log('Search year:', year);
+  console.log('Search URL:', searchUrl);
+  console.groupEnd();
   try {
     var searchRes = await fetch(searchUrl);
     if (!searchRes.ok) return null;
     var searchData = await searchRes.json();
+    console.group('📦 TMDB SEARCH RESULTS');
+    console.log('Results count:', searchData.results ? searchData.results.length : 0);
+    console.log('Results:', searchData.results);
+    console.groupEnd();
     if (!searchData.results || !searchData.results.length) return null;
-    var first = searchData.results[0];
+    var exactMatch = searchData.results.find(function (r) {
+      return normalizeTitle(r.original_title) === normalizeTitle(title);
+    });
+    var first = exactMatch || searchData.results[0];
+    console.log('Chosen candidate:', first);
     var tmdbId = first.id;
     if (tmdbId == null) return null;
 
@@ -229,7 +243,6 @@ async function resolveMovieViaTmdb(title, apiKey) {
     var backdropPath = movieData.backdrop_path;
     var overview = movieData.overview && String(movieData.overview).trim() ? String(movieData.overview).trim() : '';
     if (!posterPath && !backdropPath) return null;
-    if (!overview) return null;
 
     var posterUrl = posterPath ? TMDB_IMAGE_BASE + '/t/p/w780' + posterPath : null;
     var backdropUrl = backdropPath ? TMDB_IMAGE_BASE + '/t/p/w1280' + backdropPath : (posterPath ? TMDB_IMAGE_BASE + '/t/p/w780' + posterPath : null);
@@ -335,6 +348,12 @@ module.exports = async (req, res) => {
     });
 
     var list = (raw && raw.movies && Array.isArray(raw.movies)) ? raw.movies : [];
+    console.group('🎬 LLM RAW OUTPUT');
+    console.log('Raw LLM JSON:', raw);
+    console.log('Raw movies array:', list);
+    console.log('Count from LLM:', list.length);
+    console.groupEnd();
+
     var globalNorm = (globalHistory || []).map(function (t) { return normalizeTitle(t); });
     var seenTitles = {};
     var titlesToResolve = [];
@@ -342,7 +361,6 @@ module.exports = async (req, res) => {
       var item = list[i];
       var title = (item && (item.title != null || item.original_title != null)) ? String(item.title || item.original_title).trim() : '';
       if (!title) continue;
-      if (containsCyrillic(title)) continue;
       var key = normalizeTitle(title);
       if (seenTitles[key]) continue;
       seenTitles[key] = true;
@@ -351,10 +369,26 @@ module.exports = async (req, res) => {
       titlesToResolve.push(title);
     }
 
+    console.group('🧹 AFTER TITLE FILTERING');
+    console.log('Titles to resolve:', titlesToResolve);
+    console.log('Session history:', history);
+    console.log('Global history:', globalHistory);
+    console.groupEnd();
+
     var recommendations = [];
     var seenIds = {};
     for (var t = 0; t < titlesToResolve.length; t++) {
-      var resolved = await resolveMovieViaTmdb(titlesToResolve[t], tmdbApiKey);
+      var llmItem = list.find(function (x) {
+        var xt = (x && (x.title != null || x.original_title != null)) ? String(x.title || x.original_title).trim() : '';
+        return xt && normalizeTitle(xt) === normalizeTitle(titlesToResolve[t]);
+      });
+      var year = llmItem && llmItem.year != null ? llmItem.year : null;
+      var resolved = await resolveMovieViaTmdb(titlesToResolve[t], tmdbApiKey, year);
+      if (resolved) {
+        console.log('✅ RESOLVED MOVIE:', resolved);
+      } else {
+        console.log('❌ SKIPPED (TMDB failed or filtered):', titlesToResolve[t]);
+      }
       if (!resolved) continue;
       if (seenIds[resolved.tmdb_id]) continue;
       seenIds[resolved.tmdb_id] = true;
@@ -364,6 +398,10 @@ module.exports = async (req, res) => {
     for (var r = 0; r < recommendations.length; r++) {
       addToSessionHistory(sessionId, normalizeTitle(recommendations[r].title));
     }
+    console.group('🚀 FINAL RESPONSE');
+    console.log('Resolved recommendations:', recommendations);
+    console.log('Count returned to frontend:', recommendations.length);
+    console.groupEnd();
     res.status(200).json({ recommendations: recommendations, sessionId: sessionId });
   } catch (err) {
     console.error('GROQ ERROR:', err);
