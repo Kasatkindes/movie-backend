@@ -619,6 +619,36 @@ function getRecommendationFromApi(options) {
     return null;
   }
 
+  /** Safe API call with retry on server/network errors only. Returns raw API result or error object. */
+  function getRecommendationWithRetrySafe(options, maxRetries) {
+    maxRetries = maxRetries == null ? 1 : maxRetries;
+    var fullOpts = {
+      mood: options.mood,
+      epoch: options.epoch,
+      rating: options.rating,
+      popularity: options.popularity,
+      exclude: sessionHistory.slice(0),
+      likedMovies: getLikedMovies(),
+      globalHistory: getGlobalHistory(),
+      sessionId: apiSessionId
+    };
+    return (function attempt(n) {
+      return getRecommendationFromApi(fullOpts).then(function (result) {
+        if (!result || result._error) {
+          var isServerError = result && (result.status === 0 || result.status >= 500);
+          if (n >= maxRetries || !isServerError) {
+            return result;
+          }
+          return new Promise(function (res) { setTimeout(res, 800); }).then(function () { return attempt(n + 1); });
+        }
+        if (result.recommendation && result.recommendation.original_title) {
+          addToGlobalHistory(result.recommendation.original_title);
+        }
+        return result;
+      });
+    })(0);
+  }
+
   /** Запрашивает рекомендацию; при дубликате в sessionHistory автоматически повторяет запрос до нового фильма (макс. 3 попытки). */
   function fetchRecommendationWithRetry(opts, maxAttempts) {
     maxAttempts = maxAttempts == null ? 3 : maxAttempts;
@@ -883,21 +913,15 @@ function getRecommendationFromApi(options) {
       }
     }
     function proceed() {
-      if (result.serverError && (result.status === 500 || result.status >= 500 || result.status === 0)) {
-        var msg = 'Упс, нейронка устала. Попробуйте через минуту';
-        console.error(msg);
-        renderServerErrorScreen(msg);
+      if (result.serverError || (result && result._error)) {
+        renderServerErrorScreen('Сервис временно недоступен. Попробуйте ещё раз.');
         return;
       }
       if (data && data.recommendation && result.exhausted) {
         renderNoMoreVariantsScreen(null, 'Попробуйте сменить фильтры');
         return;
       }
-      if (opts) {
-        renderMovieScreen(pickMovie(opts).movie);
-      } else {
-        renderMoodScreen();
-      }
+      renderMoodScreen();
     }
     if (data && data.recommendation && !result.exhausted) {
       var rec = data.recommendation;
@@ -962,7 +986,24 @@ function getRecommendationFromApi(options) {
         '</footer>' +
       '</section>';
     app.querySelector('#btn-back-error').addEventListener('click', renderMoodScreen);
-    app.querySelector('#btn-retry-later').addEventListener('click', renderMoodScreen);
+    app.querySelector('#btn-retry-later').addEventListener('click', function () {
+      renderLoadingScreen();
+      var opts = {
+        mood: state.selectedMood || 'neutral',
+        epoch: state.selectedEpoch,
+        rating: state.selectedRating,
+        popularity: state.selectedPopularity
+      };
+      getRecommendationWithRetrySafe(opts, 1).then(function (result) {
+        var payload = { data: result, opts: opts };
+        if (result && result._error) {
+          payload.serverError = (result.status === 0 || result.status >= 500);
+          payload.status = result.status;
+          payload.message = result.message;
+        }
+        fadeOutLoadingThenShowMovie(payload, opts);
+      });
+    });
   }
 
   function renderNoMoreVariantsScreen(movieTitle, overrideMessage) {
@@ -1083,8 +1124,14 @@ function getRecommendationFromApi(options) {
     }
     renderLoadingScreen();
     var opts = { mood: state.selectedMood || 'neutral', epoch: state.selectedEpoch, rating: state.selectedRating, popularity: state.selectedPopularity };
-    fetchRecommendationWithRetry(opts, 3).then(function (result) {
-      fadeOutLoadingThenShowMovie(result, result.opts);
+    getRecommendationWithRetrySafe(opts, 1).then(function (result) {
+      var payload = { data: result, opts: opts };
+      if (!result || result._error) {
+        payload.serverError = (!result || result.status === 0 || result.status >= 500);
+        payload.status = result && result.status;
+        payload.message = result && result.message;
+      }
+      fadeOutLoadingThenShowMovie(payload, opts);
     });
   }
 
@@ -1345,8 +1392,14 @@ function getRecommendationFromApi(options) {
       rating: state.selectedRating,
       popularity: state.selectedPopularity
     };
-    fetchRecommendationWithRetry(opts, 3).then(function (result) {
-      fadeOutLoadingThenShowMovie(result, result.opts);
+    getRecommendationWithRetrySafe(opts, 1).then(function (result) {
+      var payload = { data: result, opts: opts };
+      if (!result || result._error) {
+        payload.serverError = (!result || result.status === 0 || result.status >= 500);
+        payload.status = result && result.status;
+        payload.message = result && result.message;
+      }
+      fadeOutLoadingThenShowMovie(payload, opts);
     });
   }
 
