@@ -179,23 +179,16 @@ Return ONLY one JSON object. No markdown. No text before or after.
 {
   "movies": [
     {
-      "original_title": "Exact English canonical movie title",
-      "year": 2010,
-      "rating": "7.5",
-      "country": "USA",
-      "genres": "Drama",
-      "ageLimit": "16+"
+      "title": "Exact English canonical movie title",
+      "year": 1967
     }
   ]
 }
 
-- movies must contain exactly 5 objects.
-- Each object must include: original_title, year, rating, country, genres, ageLimit.
-- No description field.
+- movies: array of exactly 5 objects.
+- Each object: "title" (required, English canonical as on IMDb/TMDB), "year" (optional number, for search precision only).
+- Do NOT include rating, country, genres, ageLimit — metadata comes from TMDB only.
 - Exclude list is strictly forbidden to appear in results.
-
-OUTPUT: Return ONLY a JSON object with key "movies" — an array of exactly 5 objects. Each object has ONLY one field: "title" (string, English canonical movie title as on IMDb/TMDB). No year, no rating, no description, no other fields.
-Example: { "movies": [ { "title": "Inception" }, { "title": "The Shawshank Redemption" }, ... ] }
 `;
 
 const TMDB_IMAGE_BASE = 'https://image.tmdb.org';
@@ -249,19 +242,38 @@ async function resolveMovieViaTmdb(title, apiKey, year) {
     var posterUrl = movieData.poster_path
       ? TMDB_IMAGE_BASE + '/t/p/w780' + movieData.poster_path
       : null;
-    var year = movieData.release_date ? parseInt(String(movieData.release_date).split('-')[0], 10) : null;
-    if (year && isNaN(year)) year = null;
-    var rating = movieData.vote_average != null ? Number(movieData.vote_average) : null;
+
+    var year = movieData.release_date
+      ? parseInt(String(movieData.release_date).split('-')[0], 10)
+      : null;
+    if (year != null && isNaN(year)) year = null;
+
+    var rating = movieData.vote_average
+      ? String(Math.round(movieData.vote_average * 10) / 10)
+      : null;
+
+    var country = movieData.production_countries && movieData.production_countries.length
+      ? movieData.production_countries.map(function (c) { return c.name; }).join(', ')
+      : null;
+
+    var genres = movieData.genres && movieData.genres.length
+      ? movieData.genres.map(function (g) { return g.name; }).join(', ')
+      : null;
+
+    var ageLimit = movieData.adult === true ? '18+' : '12+';
 
     return {
       tmdb_id: tmdbId,
       title: movieData.title || movieData.original_title || title,
       original_title: movieData.original_title || movieData.title || title,
       overview: overview,
-      poster_url: posterUrl,
       backdrop_url: backdropUrl,
+      poster_url: posterUrl,
       year: year,
-      rating: rating != null && !isNaN(rating) ? String(Math.round(rating * 10) / 10) : null
+      rating: rating,
+      country: country,
+      genres: genres,
+      ageLimit: ageLimit
     };
   } catch (e) {
     return null;

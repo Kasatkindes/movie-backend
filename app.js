@@ -910,7 +910,15 @@ function getRecommendationFromApi(options) {
       title: displayTitle,
       posterUrl: posterUrl,
       description: overview,
-      rec: { title: displayTitle, original_title: movie.original_title || displayTitle, year: year, rating: ratingVal }
+      rec: {
+        title: displayTitle,
+        original_title: movie.original_title || displayTitle,
+        year: year,
+        rating: ratingVal,
+        country: movie.country,
+        genres: movie.genres,
+        ageLimit: movie.ageLimit
+      }
     });
   }
 
@@ -967,10 +975,12 @@ function getRecommendationFromApi(options) {
       ? '<img src="' + escapeHtml(posterUrlRaw) + '" alt="" class="result-backdrop__img loaded">'
       : '<div class="result-backdrop__placeholder">🎬</div>';
 
-    var recAge = rec && (rec.ageLimit != null ? String(rec.ageLimit) : (rec.ageRating != null ? String(rec.ageRating) : '')) || '';
-    var recCountry = rec && (rec.country != null ? String(rec.country) : (Array.isArray(rec.countries) ? rec.countries.join(', ') : (rec.countries != null ? String(rec.countries) : ''))) || '';
-    var recGenres = rec && (rec.genres != null ? String(rec.genres) : '') || '';
-    var recMetaRest = [recAge, rec && rec.year, recCountry, recGenres].filter(Boolean).join(' • ');
+    var metaParts = [];
+    if (rec && rec.ageLimit) metaParts.push(rec.ageLimit);
+    if (rec && rec.year != null) metaParts.push(rec.year);
+    if (rec && rec.country) metaParts.push(rec.country);
+    if (rec && rec.genres) metaParts.push(rec.genres);
+    var recMetaRest = metaParts.join(' • ');
     var ratingVal = (rec && rec.rating != null && rec.rating !== '') ? escapeHtml(String(rec.rating)) : '';
     var imdbBadgeHtml = ratingVal
       ? '<span id="result-imdb" class="imdb-badge">' + IMDB_ICON_SVG + '<span class="imdb-badge__rating">≈ ' + ratingVal + '</span></span>'
