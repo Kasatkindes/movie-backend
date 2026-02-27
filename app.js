@@ -324,82 +324,76 @@ function titlesMatch(a, b) {
 }
 
 /**
- * Performs TMDB search with fallback strategy:
+ * Performs TMDB search with deterministic sequential strategy:
  * 1) ru-RU with year
  * 2) ru-RU without year
- * 3) en-US without year
- * Returns first successful match with image and overview, or fallback.
+ * Returns one matched item with image and overview or fallback.
  * @param {string} query - search query (e.g. original title)
  * @param {string|number} year
  * @returns {Promise<{ url: string, matchedTitle: string, overview: string }>}
  */
-function fetchImageFromTmdbSearch(query, year) {
+async function fetchImageFromTmdbSearch(query, year) {
   var fallback = { url: FALLBACK_BACKDROP_URL, matchedTitle: '', overview: '' };
   if (!query || !String(query).trim()) return Promise.resolve(fallback);
 
-  function search(lang, withYear) {
-    var q = encodeURIComponent(String(query).trim());
-    var yearParam = withYear && year ? '&year=' + encodeURIComponent(String(year)) : '';
-    var url = 'https://api.themoviedb.org/3/search/movie?api_key=' + TMDB_API_KEY +
-              '&query=' + q + yearParam + '&language=' + lang;
+  async function searchOnce(withYear) {
+    var baseQuery = String(query).trim();
+    var url =
+      'https://api.themoviedb.org/3/search/movie' +
+      '?api_key=' + TMDB_API_KEY +
+      '&query=' + encodeURIComponent(baseQuery) +
+      '&language=ru-RU';
 
-    return fetch(url)
-      .then(function (res) { return res.ok ? res.json() : null; })
-      .then(function (data) {
-        if (!data || !Array.isArray(data.results) || data.results.length === 0) {
-          return null;
+    if (withYear && year) {
+      url += '&year=' + encodeURIComponent(String(year));
+    }
+
+    try {
+      var res = await fetch(url);
+      if (!res.ok) return null;
+      var data = await res.json();
+      if (!data || !Array.isArray(data.results) || data.results.length === 0) return null;
+      for (var i = 0; i < data.results.length; i++) {
+        if (titlesMatch(baseQuery, data.results[i].title)) {
+          return data.results[i];
         }
-        var item = null;
-        for (var i = 0; i < data.results.length; i++) {
-          if (titlesMatch(query, data.results[i].title)) {
-            item = data.results[i];
-            break;
-          }
-        }
-        if (!item) return null;
-
-        return fetch(
-          'https://api.themoviedb.org/3/movie/' + item.id +
-          '?api_key=' + TMDB_API_KEY +
-          '&language=ru-RU'
-        )
-          .then(function (res) { return res.ok ? res.json() : null; })
-          .then(function (fullData) {
-            var imageUrl = item.backdrop_path
-              ? TMDB_BACKDROP_BASE + item.backdrop_path
-              : item.poster_path
-                ? TMDB_POSTER_BASE + item.poster_path
-                : FALLBACK_BACKDROP_URL;
-
-            var finalTitle = (fullData && fullData.title) ? fullData.title : (item.title || '');
-            var finalOverview = (fullData && fullData.overview) ? fullData.overview : (item.overview || '');
-
-            return {
-              url: imageUrl,
-              matchedTitle: finalTitle,
-              overview: finalOverview
-            };
-          })
-          .catch(function () {
-            var imageUrl = item.backdrop_path
-              ? TMDB_BACKDROP_BASE + item.backdrop_path
-              : item.poster_path
-                ? TMDB_POSTER_BASE + item.poster_path
-                : FALLBACK_BACKDROP_URL;
-            return {
-              url: imageUrl,
-              matchedTitle: item.title || '',
-              overview: (item.overview && String(item.overview).trim()) ? String(item.overview).trim() : ''
-            };
-          });
-      })
-      .catch(function () { return null; });
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
   }
 
-  return search('ru-RU', true)
-    .then(function (res) { return res || search('ru-RU', false); })
-    .then(function (res) { return res || search('en-US', false); })
-    .then(function (res) { return res || fallback; });
+  var item = await searchOnce(true);
+  if (!item) {
+    item = await searchOnce(false);
+  }
+
+  if (!item) {
+    return null;
+  }
+
+  var imageUrl = null;
+  if (item.backdrop_path) {
+    imageUrl = TMDB_BACKDROP_BASE + item.backdrop_path;
+  } else if (item.poster_path) {
+    imageUrl = TMDB_POSTER_BASE + item.poster_path;
+  } else {
+    imageUrl = FALLBACK_BACKDROP_URL;
+  }
+
+  var finalOverview = '';
+  if (item.overview && String(item.overview).trim()) {
+    finalOverview = String(item.overview).trim();
+  } else {
+    finalOverview = '';
+  }
+
+  return {
+    url: imageUrl,
+    matchedTitle: item.title || String(query).trim(),
+    overview: finalOverview
+  };
 }
 
 /**
@@ -412,7 +406,9 @@ function fetchImageFromTmdbSearch(query, year) {
 function fetchMovieBackdrop(originalTitle, year) {
   var fallback = { url: FALLBACK_BACKDROP_URL, matchedTitle: '', overview: '' };
   if (!originalTitle || String(originalTitle).trim() === '') return Promise.resolve(fallback);
-  return fetchImageFromTmdbSearch(String(originalTitle).trim(), year);
+  return fetchImageFromTmdbSearch(String(originalTitle).trim(), year)
+    .then(function (res) { return res || fallback; })
+    .catch(function () { return fallback; });
 }
 
 /** Calls external backend. Returns { recommendation } or null on failure; on 5xx returns { _error: true, status, message }. */
@@ -1057,16 +1053,23 @@ function getRecommendationFromApi(options) {
    * @param {{ title: string|null, posterUrl: string|null, description: string, rec: object|null }} finalData
    */
   function renderMovieCardFinal(finalData) {
+    var rec = finalData.rec || null;
+    var baseOriginalTitle = (rec && rec.original_title && String(rec.original_title).trim()) ? String(rec.original_title).trim() : '';
     var displayTitle = (finalData.title && String(finalData.title).trim())
       ? String(finalData.title).trim()
-      : (finalData.rec && finalData.rec.original_title && String(finalData.rec.original_title).trim())
-          ? String(finalData.rec.original_title).trim()
-          : 'Название недоступно';
-    var desc = (finalData.description && String(finalData.description).trim()) ? String(finalData.description).trim() : '';
-    var posterHtml = (finalData.posterUrl && finalData.posterUrl !== FALLBACK_BACKDROP_URL)
-      ? '<img src="' + escapeHtml(finalData.posterUrl) + '" alt="" class="result-backdrop__img loaded">'
+      : (baseOriginalTitle || 'Название недоступно');
+
+    var baseDesc = (rec && rec.description && String(rec.description).trim()) ? String(rec.description).trim() : '';
+    var desc = (finalData.description && String(finalData.description).trim())
+      ? String(finalData.description).trim()
+      : baseDesc;
+
+    var posterUrlRaw = finalData.posterUrl || FALLBACK_BACKDROP_URL;
+    var hasRealImage = posterUrlRaw && posterUrlRaw !== FALLBACK_BACKDROP_URL;
+    var posterHtml = hasRealImage
+      ? '<img src="' + escapeHtml(posterUrlRaw) + '" alt="" class="result-backdrop__img loaded">'
       : '<div class="result-backdrop__placeholder">🎬</div>';
-    var rec = finalData.rec || null;
+
     var recAge = rec && (rec.ageLimit != null ? String(rec.ageLimit) : (rec.ageRating != null ? String(rec.ageRating) : '')) || '';
     var recCountry = rec && (rec.country != null ? String(rec.country) : (Array.isArray(rec.countries) ? rec.countries.join(', ') : (rec.countries != null ? String(rec.countries) : ''))) || '';
     var recGenres = rec && (rec.genres != null ? String(rec.genres) : '') || '';
