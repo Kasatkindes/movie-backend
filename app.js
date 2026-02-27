@@ -300,10 +300,7 @@ function normalizeTitle(s) {
 }
 
 /**
- * Returns true if two titles are likely the same film, with strict matching:
- * - exact match
- * - exact match of base title before colon
- * - substring match only if both titles are reasonably long
+ * Strict title matching: exact match or exact base before colon only. No includes().
  * @param {string} a - e.g. recommendation title
  * @param {string} b - e.g. TMDB matched title
  * @returns {boolean}
@@ -311,24 +308,17 @@ function normalizeTitle(s) {
 function titlesMatch(a, b) {
   if (!a || !b) return false;
 
-  var na = normalizeTitle(a);
-  var nb = normalizeTitle(b);
+  var na = normalizeTitle(a).trim();
+  var nb = normalizeTitle(b).trim();
 
   if (!na || !nb) return false;
 
-  // точное совпадение
   if (na === nb) return true;
 
-  // удаляем двоеточия и подзаголовки
-  var naBase = na.split(':')[0];
-  var nbBase = nb.split(':')[0];
+  var naBase = na.split(':')[0].trim();
+  var nbBase = nb.split(':')[0].trim();
 
   if (naBase === nbBase) return true;
-
-  // проверяем включение, но только если длина достаточно большая
-  if (na.length > 5 && nb.length > 5) {
-    if (na.indexOf(nb) !== -1 || nb.indexOf(na) !== -1) return true;
-  }
 
   return false;
 }
@@ -368,52 +358,40 @@ function fetchImageFromTmdbSearch(query, year) {
         }
         if (!item) return null;
 
-        var imageUrl = item.backdrop_path
-          ? TMDB_BACKDROP_BASE + item.backdrop_path
-          : item.poster_path
-            ? TMDB_POSTER_BASE + item.poster_path
-            : FALLBACK_BACKDROP_URL;
+        return fetch(
+          'https://api.themoviedb.org/3/movie/' + item.id +
+          '?api_key=' + TMDB_API_KEY +
+          '&language=ru-RU'
+        )
+          .then(function (res) { return res.ok ? res.json() : null; })
+          .then(function (fullData) {
+            var imageUrl = item.backdrop_path
+              ? TMDB_BACKDROP_BASE + item.backdrop_path
+              : item.poster_path
+                ? TMDB_POSTER_BASE + item.poster_path
+                : FALLBACK_BACKDROP_URL;
 
-        var overview = (item.overview && String(item.overview).trim()) ? String(item.overview).trim() : '';
+            var finalTitle = (fullData && fullData.title) ? fullData.title : (item.title || '');
+            var finalOverview = (fullData && fullData.overview) ? fullData.overview : (item.overview || '');
 
-        if (lang === 'ru-RU' && !overview) {
-          var enUrl = 'https://api.themoviedb.org/3/search/movie?api_key=' + TMDB_API_KEY +
-                      '&query=' + q + '&language=en-US';
-          return fetch(enUrl)
-            .then(function (res2) { return res2.ok ? res2.json() : null; })
-            .then(function (data2) {
-              if (data2 && Array.isArray(data2.results) && data2.results.length > 0) {
-                var enItem = null;
-                for (var j = 0; j < data2.results.length; j++) {
-                  if (titlesMatch(query, data2.results[j].title)) {
-                    enItem = data2.results[j];
-                    break;
-                  }
-                }
-                if (enItem && enItem.overview && String(enItem.overview).trim()) {
-                  overview = String(enItem.overview).trim();
-                }
-              }
-              return {
-                url: imageUrl,
-                matchedTitle: item.title || '',
-                overview: overview || ''
-              };
-            })
-            .catch(function () {
-              return {
-                url: imageUrl,
-                matchedTitle: item.title || '',
-                overview: overview || ''
-              };
-            });
-        }
-
-        return {
-          url: imageUrl,
-          matchedTitle: item.title || '',
-          overview: overview || ''
-        };
+            return {
+              url: imageUrl,
+              matchedTitle: finalTitle,
+              overview: finalOverview
+            };
+          })
+          .catch(function () {
+            var imageUrl = item.backdrop_path
+              ? TMDB_BACKDROP_BASE + item.backdrop_path
+              : item.poster_path
+                ? TMDB_POSTER_BASE + item.poster_path
+                : FALLBACK_BACKDROP_URL;
+            return {
+              url: imageUrl,
+              matchedTitle: item.title || '',
+              overview: (item.overview && String(item.overview).trim()) ? String(item.overview).trim() : ''
+            };
+          });
       })
       .catch(function () { return null; });
   }
