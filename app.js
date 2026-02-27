@@ -426,7 +426,7 @@ function fetchMovieBackdrop(originalTitle, year) {
     .catch(function () { return fallback; });
 }
 
-/** Calls external backend. Returns { recommendation } or null on failure; on 5xx returns { _error: true, status, message }. */
+/** Calls external backend. Returns { recommendations: Movie[], sessionId } or on failure { _error: true, status, message }. */
 function getRecommendationFromApi(options) {
   return fetch(API_RECOMMEND_URL, {
     method: 'POST',
@@ -521,6 +521,9 @@ function getRecommendationFromApi(options) {
   const LIKED_MOVIES_KEY = 'likedMovies';
   const GLOBAL_HISTORY_KEY = 'globalHistory';
   const HAS_SEEN_LIKE_TOOLTIP_KEY = 'hasSeenLikeTooltip';
+
+  var recommendationQueue = [];
+  var currentRecommendationIndex = 0;
 
   function getGlobalHistory() {
     try {
@@ -641,43 +644,17 @@ function getRecommendationFromApi(options) {
           }
           return new Promise(function (res) { setTimeout(res, 800); }).then(function () { return attempt(n + 1); });
         }
-        if (result.recommendation && result.recommendation.original_title) {
-          addToGlobalHistory(result.recommendation.original_title);
+        var recs = result.recommendations;
+        if (Array.isArray(recs)) {
+          for (var r = 0; r < recs.length; r++) {
+            if (recs[r] && recs[r].original_title) {
+              addToGlobalHistory(recs[r].original_title);
+            }
+          }
         }
         return result;
       });
     })(0);
-  }
-
-  /** Запрашивает рекомендацию; при дубликате в sessionHistory автоматически повторяет запрос до нового фильма (макс. 3 попытки). */
-  function fetchRecommendationWithRetry(opts, maxAttempts) {
-    maxAttempts = maxAttempts == null ? 3 : maxAttempts;
-    opts = { mood: opts.mood, epoch: opts.epoch, rating: opts.rating, popularity: opts.popularity, exclude: sessionHistory.slice(0), likedMovies: getLikedMovies(), globalHistory: getGlobalHistory() };
-    var attempt = 0;
-
-    function tryOnce() {
-      attempt += 1;
-      return getRecommendationFromApi(opts).then(function (data) {
-        if (data && data._error) {
-          return { data: null, opts: opts, exhausted: false, serverError: true, status: data.status, message: data.message };
-        }
-        if (!data || !data.recommendation) {
-          return { data: data, opts: opts, exhausted: false };
-        }
-        if (data.recommendation && data.recommendation.original_title) {
-          addToGlobalHistory(data.recommendation.original_title);
-        }
-        var title = getRecommendationTitle(data.recommendation);
-        if (!title || sessionHistory.indexOf(title) === -1) {
-          return { data: data, opts: opts, exhausted: false };
-        }
-        if (attempt >= maxAttempts) {
-          return { data: data, opts: opts, exhausted: true };
-        }
-        return tryOnce();
-      });
-    }
-    return tryOnce();
   }
 
   const state = {
@@ -894,78 +871,6 @@ function getRecommendationFromApi(options) {
     loadingPhraseIntervalId = setInterval(nextPhrase, 2000);
   }
 
-  function fadeOutLoadingThenShowMovie(result, opts) {
-    var data = result && result.data;
-    var section = app.querySelector('.screen-loading');
-    function stopLoadingPhrase() {
-      if (loadingPhraseIntervalId) {
-        clearInterval(loadingPhraseIntervalId);
-        loadingPhraseIntervalId = null;
-      }
-    }
-    function doFadeOutThen(callback) {
-      stopLoadingPhrase();
-      if (section && section.parentNode) {
-        section.classList.add('screen-loading--fade-out');
-        setTimeout(callback, 400);
-      } else {
-        callback();
-      }
-    }
-    function proceed() {
-      if (result.serverError || (result && result._error)) {
-        renderServerErrorScreen('Сервис временно недоступен. Попробуйте ещё раз.');
-        return;
-      }
-      if (data && data.recommendation && result.exhausted) {
-        renderNoMoreVariantsScreen(null, 'Попробуйте сменить фильтры');
-        return;
-      }
-      renderMoodScreen();
-    }
-    if (data && data.recommendation && !result.exhausted) {
-      var rec = data.recommendation;
-      var needTmdb = typeof rec !== 'string' && rec.original_title != null && String(rec.original_title).trim() !== '';
-      if (!needTmdb) {
-        if (typeof rec === 'string') {
-          doFadeOutThen(function () {
-            renderMovieCardFinal({ title: 'Ваша рекомендация', posterUrl: null, description: rec, rec: null });
-          });
-        } else {
-          doFadeOutThen(function () {
-            renderMovieCardFinal({ title: null, posterUrl: null, description: 'Нет данных о фильме.', rec: rec });
-          });
-        }
-        return;
-      }
-      fetchMovieBackdrop(rec.original_title, rec.year).then(function (tmdbResult) {
-        var finalTitle = (tmdbResult.matchedTitle && String(tmdbResult.matchedTitle).trim())
-          ? tmdbResult.matchedTitle.trim()
-          : (rec.original_title && String(rec.original_title).trim()
-              ? String(rec.original_title).trim()
-              : null);
-        var finalPosterUrl = (tmdbResult.url && tmdbResult.url !== FALLBACK_BACKDROP_URL) ? tmdbResult.url : null;
-        var description = (tmdbResult.overview && String(tmdbResult.overview).trim()) ? tmdbResult.overview.trim() : '';
-        doFadeOutThen(function () {
-          renderMovieCardFinal({ title: finalTitle, posterUrl: finalPosterUrl, description: description, rec: rec });
-        });
-      }).catch(function () {
-        var fallbackTitle = (rec.original_title && String(rec.original_title).trim()) ? String(rec.original_title).trim() : null;
-        doFadeOutThen(function () {
-          renderMovieCardFinal({ title: fallbackTitle, posterUrl: null, description: '', rec: rec });
-        });
-      });
-      return;
-    }
-    if (section) {
-      section.classList.add('screen-loading--fade-out');
-      stopLoadingPhrase();
-      setTimeout(proceed, 400);
-    } else {
-      proceed();
-    }
-  }
-
   function renderServerErrorScreen(message) {
     var text = escapeHtml(message);
     app.innerHTML =
@@ -995,13 +900,17 @@ function getRecommendationFromApi(options) {
         popularity: state.selectedPopularity
       };
       getRecommendationWithRetrySafe(opts, 1).then(function (result) {
-        var payload = { data: result, opts: opts };
-        if (result && result._error) {
-          payload.serverError = (result.status === 0 || result.status >= 500);
-          payload.status = result.status;
-          payload.message = result.message;
+        if (!result || result._error) {
+          renderServerErrorScreen('Сервис временно недоступен. Попробуйте ещё раз.');
+          return;
         }
-        fadeOutLoadingThenShowMovie(payload, opts);
+        recommendationQueue = result.recommendations || [];
+        currentRecommendationIndex = 0;
+        if (!recommendationQueue.length) {
+          renderServerErrorScreen('Не удалось получить рекомендации.');
+          return;
+        }
+        renderMovieFromQueue();
       });
     });
   }
@@ -1101,7 +1010,41 @@ function getRecommendationFromApi(options) {
   }
   window.openFeedbackModal = openFeedbackModal;
 
-  /** Shared handler for "Поменяй": loading screen then fetch then show result (or fallbacks). */
+  /** Renders the movie at currentRecommendationIndex from recommendationQueue (fetches TMDB, then renders card). */
+  function renderMovieFromQueue() {
+    var rec = recommendationQueue[currentRecommendationIndex];
+    if (!rec) return;
+
+    if (loadingPhraseIntervalId) {
+      clearInterval(loadingPhraseIntervalId);
+      loadingPhraseIntervalId = null;
+    }
+
+    fetchMovieBackdrop(rec.original_title, rec.year)
+      .then(function (tmdbResult) {
+        var finalTitle = (tmdbResult.matchedTitle && String(tmdbResult.matchedTitle).trim())
+          ? tmdbResult.matchedTitle.trim()
+          : (rec.original_title || 'Название недоступно');
+        var finalPosterUrl = (tmdbResult.url && tmdbResult.url !== FALLBACK_BACKDROP_URL) ? tmdbResult.url : null;
+        var finalDescription = (tmdbResult.overview && String(tmdbResult.overview).trim()) ? tmdbResult.overview.trim() : (rec.description || '');
+        renderMovieCardFinal({
+          title: finalTitle,
+          posterUrl: finalPosterUrl,
+          description: finalDescription,
+          rec: rec
+        });
+      })
+      .catch(function () {
+        renderMovieCardFinal({
+          title: rec.original_title || null,
+          posterUrl: null,
+          description: (rec.description && String(rec.description).trim()) ? String(rec.description).trim() : '',
+          rec: rec
+        });
+      });
+  }
+
+  /** Handler for "Поменяй": show next from queue or fetch new batch. */
   function onAnotherMovieClick() {
     generateCounter++;
     if (generateCounter >= 5 && canShowFeedback() && !sessionStorage.getItem('feedback_shown_this_session')) {
@@ -1122,16 +1065,31 @@ function getRecommendationFromApi(options) {
         snd.play().catch(function () {});
       } catch (e) {}
     }
+
+    currentRecommendationIndex++;
+
+    if (currentRecommendationIndex < recommendationQueue.length) {
+      renderLoadingScreen();
+      setTimeout(function () {
+        renderMovieFromQueue();
+      }, 200);
+      return;
+    }
+
     renderLoadingScreen();
     var opts = { mood: state.selectedMood || 'neutral', epoch: state.selectedEpoch, rating: state.selectedRating, popularity: state.selectedPopularity };
     getRecommendationWithRetrySafe(opts, 1).then(function (result) {
-      var payload = { data: result, opts: opts };
       if (!result || result._error) {
-        payload.serverError = (!result || result.status === 0 || result.status >= 500);
-        payload.status = result && result.status;
-        payload.message = result && result.message;
+        renderServerErrorScreen('Сервис временно недоступен.');
+        return;
       }
-      fadeOutLoadingThenShowMovie(payload, opts);
+      recommendationQueue = result.recommendations || [];
+      currentRecommendationIndex = 0;
+      if (!recommendationQueue.length) {
+        renderServerErrorScreen('Не удалось получить рекомендации.');
+        return;
+      }
+      renderMovieFromQueue();
     });
   }
 
@@ -1393,13 +1351,17 @@ function getRecommendationFromApi(options) {
       popularity: state.selectedPopularity
     };
     getRecommendationWithRetrySafe(opts, 1).then(function (result) {
-      var payload = { data: result, opts: opts };
       if (!result || result._error) {
-        payload.serverError = (!result || result.status === 0 || result.status >= 500);
-        payload.status = result && result.status;
-        payload.message = result && result.message;
+        renderServerErrorScreen('Сервис временно недоступен. Попробуйте ещё раз.');
+        return;
       }
-      fadeOutLoadingThenShowMovie(payload, opts);
+      recommendationQueue = result.recommendations || [];
+      currentRecommendationIndex = 0;
+      if (!recommendationQueue.length) {
+        renderServerErrorScreen('Не удалось получить рекомендации.');
+        return;
+      }
+      renderMovieFromQueue();
     });
   }
 

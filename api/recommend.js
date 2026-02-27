@@ -263,16 +263,6 @@ module.exports = async (req, res) => {
     }
     sessionFilterKey.set(sessionId, currentFilterKey);
 
-    var queue = sessionQueue.get(sessionId);
-    if (!Array.isArray(queue)) queue = [];
-    if (queue.length > 0) {
-      var next = queue.shift();
-      sessionQueue.set(sessionId, queue);
-      addToSessionHistory(sessionId, normalizeTitle(next.original_title));
-      res.status(200).json({ recommendation: next, sessionId: sessionId });
-      return;
-    }
-
     var history = getSessionHistory(sessionId);
     var excludeList = (globalHistory || []).concat(history).slice(-EXCLUDE_MAX);
     var likedBlock = '';
@@ -329,13 +319,13 @@ module.exports = async (req, res) => {
       recommendations.push(rec);
     }
     if (recommendations.length === 0) {
-      res.status(200).json({ recommendation: null, sessionId: sessionId });
+      res.status(200).json({ recommendations: [], sessionId: sessionId });
       return;
     }
-    var one = recommendations.shift();
-    sessionQueue.set(sessionId, recommendations);
-    addToSessionHistory(sessionId, normalizeTitle(one.original_title));
-    res.status(200).json({ recommendation: one, sessionId: sessionId });
+    for (var r = 0; r < recommendations.length; r++) {
+      addToSessionHistory(sessionId, normalizeTitle(recommendations[r].original_title));
+    }
+    res.status(200).json({ recommendations: recommendations, sessionId: sessionId });
   } catch (err) {
     console.error('GROQ ERROR:', err);
     res.status(500).json({ error: err.message || 'Recommendation failed', details: 'Check Groq API Key or Quota' });
