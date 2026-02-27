@@ -314,7 +314,11 @@ function titlesMatch(a, b) {
 }
 
 /**
- * Performs one TMDB search and returns best image URL, matched title and overview (by popularity).
+ * Performs TMDB search with fallback strategy:
+ * 1) ru-RU with year
+ * 2) ru-RU without year
+ * 3) en-US without year
+ * Returns first successful match with image and overview, or fallback.
  * @param {string} query - search query (e.g. original title)
  * @param {string|number} year
  * @returns {Promise<{ url: string, matchedTitle: string, overview: string }>}
@@ -322,38 +326,41 @@ function titlesMatch(a, b) {
 function fetchImageFromTmdbSearch(query, year) {
   var fallback = { url: FALLBACK_BACKDROP_URL, matchedTitle: '', overview: '' };
   if (!query || !String(query).trim()) return Promise.resolve(fallback);
-  var q = encodeURIComponent(String(query).trim());
-  var yearParam = year != null && year !== '' ? '&year=' + encodeURIComponent(String(year)) : '';
-  var url = 'https://api.themoviedb.org/3/search/movie?api_key=' + TMDB_API_KEY + '&query=' + q + yearParam + '&language=ru-RU';
-  return fetch(url)
-    .then(function (res) { return res.ok ? res.json() : null; })
-    .then(function (data) {
-      try {
-        var results = data && data.results;
-        if (!Array.isArray(results) || results.length === 0) return fallback;
-        var sorted = results.slice().sort(function (a, b) {
-          var pa = typeof a.popularity === 'number' ? a.popularity : 0;
-          var pb = typeof b.popularity === 'number' ? b.popularity : 0;
-          return pb - pa;
-        });
-        for (var i = 0; i < sorted.length; i++) {
-          var item = sorted[i];
-          var imageUrl = null;
-          if (item.backdrop_path) imageUrl = TMDB_BACKDROP_BASE + item.backdrop_path;
-          else if (item.poster_path) imageUrl = TMDB_POSTER_BASE + item.poster_path;
-          if (imageUrl) {
-            var overview = (item.overview && String(item.overview).trim()) ? String(item.overview).trim() : '';
-            return { url: imageUrl, matchedTitle: item.title || '', overview: overview };
-          }
+
+  function search(lang, withYear) {
+    var q = encodeURIComponent(String(query).trim());
+    var yearParam = withYear && year ? '&year=' + encodeURIComponent(String(year)) : '';
+    var url = 'https://api.themoviedb.org/3/search/movie?api_key=' + TMDB_API_KEY +
+              '&query=' + q + yearParam + '&language=' + lang;
+
+    return fetch(url)
+      .then(function (res) { return res.ok ? res.json() : null; })
+      .then(function (data) {
+        if (!data || !Array.isArray(data.results) || data.results.length === 0) {
+          return null;
         }
-        return fallback;
-      } catch (e) {
-        return fallback;
-      }
-    })
-    .catch(function () {
-      return fallback;
-    });
+        var item = data.results[0];
+        var imageUrl = item.backdrop_path
+          ? TMDB_BACKDROP_BASE + item.backdrop_path
+          : item.poster_path
+            ? TMDB_POSTER_BASE + item.poster_path
+            : null;
+
+        if (!imageUrl) return null;
+
+        return {
+          url: imageUrl,
+          matchedTitle: item.title || '',
+          overview: item.overview || ''
+        };
+      })
+      .catch(function () { return null; });
+  }
+
+  return search('ru-RU', true)
+    .then(function (res) { return res || search('ru-RU', false); })
+    .then(function (res) { return res || search('en-US', false); })
+    .then(function (res) { return res || fallback; });
 }
 
 /**

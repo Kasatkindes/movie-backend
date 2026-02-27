@@ -38,6 +38,10 @@ function isInHistory(sessionId, normalizedTitle) {
   return getSessionHistory(sessionId).indexOf(normalizedTitle) !== -1;
 }
 
+function containsCyrillic(str) {
+  return /[а-яё]/i.test(str);
+}
+
 const SYSTEM_PROMPT = `Ты — кинокуратор. Твоя задача: выбрать ОДИН фильм, который решает пользовательскую задачу, а не просто подходит по жанру или настроению.
 
 ОБЩЕЕ ПРАВИЛО ВЫБОРА:
@@ -317,6 +321,7 @@ module.exports = async (req, res) => {
       var item = list[i];
       var rec = toRecommendation(item);
       if (!rec.original_title || !String(rec.original_title).trim()) continue;
+      if (containsCyrillic(rec.original_title)) continue;
       var key = normalizeTitle(rec.original_title);
       if (seen[key]) continue;
       seen[key] = true;
