@@ -614,14 +614,13 @@ function getRecommendationFromApi(options) {
   function renderMoodScreen() {
     var characterSrc = getCharacterSrc(state.selectedMood);
 
-    var toMoodChip = function (m) {
+    var moodChipsHtml = MOODS.map(function (m) {
       var active = state.selectedMood === m.id ? ' chip--active' : '';
       var chipIcon = (m.id === 'zone' ? 'Mood=neutral.png' : m.id === 'horror' ? 'Mood=horor.png' : 'Mood=' + m.id + '.png');
       return '<button type="button" class="chip chip--primary chip--mood' + active + '" data-mood="' + m.id + '">' +
         '<img class="chip__icon" src="assets/characters/' + chipIcon + '" alt="" width="20" height="20">' +
         '<span class="chip__label">' + m.label + '</span></button>';
-    };
-    var moodChipsHtml = MOODS.map(toMoodChip).join('');
+    }).join('');
 
     var epochChipsHtml = EPOCHS.map(function (e) {
       var active = state.selectedEpoch === e.id ? ' chip--active' : '';
@@ -656,10 +655,8 @@ function getRecommendationFromApi(options) {
         '</div>' +
         '<div class="screen-content">' +
           '<p class="section-label">Какой вайбец хочешь?</p>' +
-          '<div class="mood-scroll" role="group" aria-label="Выберите настроение">' +
-            '<div class="mood-grid">' +
-              moodChipsHtml +
-            '</div>' +
+          '<div class="chips-mood-scroll" role="group" aria-label="Выберите настроение">' +
+            '<div class="chips chips-mood">' + moodChipsHtml + '</div>' +
           '</div>' +
           '<div id="filters-trigger-slot-top" class="filters-trigger-slot">' + triggerSlotTopContent + '</div>' +
           '<div id="filters-inline" class="filters-inline' + filtersOpenClass + '">' +
@@ -695,7 +692,7 @@ function getRecommendationFromApi(options) {
       }
     }
 
-    app.querySelector('.mood-scroll').addEventListener('click', onMoodClick);
+    app.querySelector('.chips-mood').addEventListener('click', onMoodClick);
     var triggerBtn = app.querySelector('#btn-toggle-filters');
     if (triggerBtn) {
       triggerBtn.addEventListener('click', function () {
@@ -732,6 +729,11 @@ function getRecommendationFromApi(options) {
     }
     app.querySelector('#btn-find-movie').addEventListener('click', onFindMovieClick);
 
+    if (state.savedMoodScrollLeft != null) {
+      var scrollEl = app.querySelector('.chips-mood-scroll');
+      if (scrollEl) scrollEl.scrollLeft = state.savedMoodScrollLeft;
+      state.savedMoodScrollLeft = null;
+    }
   }
 
   function renderLoadingScreen() {
@@ -1134,6 +1136,8 @@ function getRecommendationFromApi(options) {
   function onMoodClick(e) {
     var chip = e.target.closest('.chip[data-mood]');
     if (!chip) return;
+    var scrollContainer = app.querySelector('.chips-mood-scroll');
+    if (scrollContainer) state.savedMoodScrollLeft = scrollContainer.scrollLeft;
     state.selectedMood = chip.dataset.mood;
     renderMoodScreen();
   }
@@ -1180,7 +1184,7 @@ function getRecommendationFromApi(options) {
   function doFetchRecommendations() {
     renderLoadingScreen();
     var opts = {
-      mood: state.selectedMood || 'neutral',
+      mood: state.selectedMood || 'explore',
       epoch: state.selectedEpoch,
       rating: state.selectedRating,
       popularity: state.selectedPopularity

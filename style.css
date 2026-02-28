@@ -166,7 +166,6 @@ body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   padding: 16px 16px 24px;
   padding-bottom: 140px;
@@ -385,6 +384,35 @@ body {
   color: var(--chip-text);
 }
 
+/* ========== Mood chips: two rows, horizontal scroll ========== */
+.chips-mood-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 -16px 20px;
+  padding: 0 16px;
+  scrollbar-width: none;
+}
+
+.chips-mood-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.chips.chips-mood {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(2, 48px);
+  gap: 8px;
+  width: max-content;
+  margin: 0;
+}
+
+.chips.chips-mood .chip {
+  width: max-content;
+  justify-self: start;
+  margin: 0;
+}
+
 /* ========== Era chips: single row, horizontal scroll (Filters screen) ========== */
 .chips-epoch-scroll {
   overflow-x: auto;
@@ -418,31 +446,6 @@ body {
   flex-wrap: wrap;
   gap: 10px 12px;
   margin-bottom: 20px;
-}
-
-/* Mood chips: one horizontal scroll, two rows move together */
-.mood-scroll {
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  margin-bottom: 20px;
-}
-
-.mood-scroll::-webkit-scrollbar {
-  display: none;
-}
-
-.mood-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  height: 104px;
-  width: max-content;
-}
-
-.mood-grid .chip {
-  flex-shrink: 0;
 }
 
 .chips-epoch,
@@ -510,6 +513,10 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.05),
     0 4px 12px rgba(0, 0, 0, 0.35),
     0 0 12px rgba(245, 196, 107, 0.25);
+}
+
+.chip.chip--primary.chip--active[data-mood="horror"] {
+  background: #E3C1F2;
 }
 
 .chip.chip--disabled {
