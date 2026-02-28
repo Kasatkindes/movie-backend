@@ -139,6 +139,22 @@ SELECTION RULES:
 
 ---
 
+MOOD: horror
+GOAL: The user wants intense fear, tension and adrenaline.
+SELECTION RULES:
+- The film must create sustained tension, fear or psychological pressure.
+- Strong atmosphere of danger or dread is required.
+- Emotional discomfort and suspense are expected.
+- Psychological horror and intense thrillers are allowed.
+- Jump scares are acceptable, but atmosphere is primary.
+FORBIDDEN:
+- Light thrillers without real tension.
+- Comedic horror.
+- Pure gore without suspense.
+- Films where fear is not the dominant emotional experience.
+
+---
+
 MOOD: explore
 Used when no mood is selected.
 GOAL: Recommendations as discovery — less obvious, not overused, high quality but non-canonical.

@@ -400,17 +400,17 @@ body {
 
 .chips.chips-mood {
   display: grid;
-  grid-auto-flow: column;
-  grid-template-rows: repeat(2, 48px);
+  grid-template-columns: repeat(4, 1fr);
   gap: 8px;
-  width: max-content;
   margin: 0;
 }
 
 .chips.chips-mood .chip {
-  width: max-content;
-  justify-self: start;
   margin: 0;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ========== Era chips: single row, horizontal scroll (Filters screen) ========== */

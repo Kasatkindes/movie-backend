@@ -326,18 +326,18 @@ function getRecommendationFromApi(options) {
     zone: 'Mood=neutral.png',
     cry: 'Mood=cry.png',
     sleep: 'Mood=sleep.png',
-    neutral: 'Mood=zone.png'
+    horror: 'Mood=horor.png'
   };
 
   const MOODS = [
     { id: 'laugh', label: 'Посмеяться' },
-    { id: 'think', label: 'Подумать' },
     { id: 'romance', label: 'Романтика' },
-    { id: 'inspire', label: 'Вдохновиться' },
     { id: 'zone', label: 'Залипнуть' },
-    { id: 'cry', label: 'Поплакать' },
     { id: 'sleep', label: 'Уснуть' },
-    { id: 'neutral', label: 'На фон' }
+    { id: 'think', label: 'Подумать' },
+    { id: 'inspire', label: 'Вдохновиться' },
+    { id: 'cry', label: 'Поплакать' },
+    { id: 'horror', label: 'Обделаться' }
   ];
 
   const EPOCHS = [
@@ -355,21 +355,21 @@ function getRecommendationFromApi(options) {
   ];
 
   const POPULARITY = [
-    { id: 'gold', label: 'Золотой фонд' },
-    { id: 'solid', label: 'Крепкое кино' },
+    { id: 'gold', label: 'Золотая классика' },
+    { id: 'solid', label: 'Крепкое кинцо' },
     { id: 'underground', label: 'Андеграунд' }
   ];
 
   const MOOD_BACKGROUND_MAP = {
     laugh: '#FFE396',
     zone: '#B8A9ED',
-    neutral: '#C2B8FF',
     sleep: '#C2D9FB',
     inspire: '#FFE396',
     cry: '#91DAFB',
     think: '#A3E0F7',
     romance: '#FDCBCA',
-    romantic: '#FDCBCA'
+    romantic: '#FDCBCA',
+    horror: '#E3C1F2'
   };
 
   const DEFAULT_MOOD_BACKGROUND = '#C2B8FF';
@@ -595,7 +595,7 @@ function getRecommendationFromApi(options) {
 
   function getCharacterSrc(mood) {
     if (!mood) return 'assets/characters/Mood=simple.png';
-    var file = MOOD_TO_CHARACTER[mood] || MOOD_TO_CHARACTER.neutral;
+    var file = MOOD_TO_CHARACTER[mood] || 'Mood=simple.png';
     return 'assets/characters/' + file;
   }
 
@@ -616,7 +616,7 @@ function getRecommendationFromApi(options) {
 
     var moodChipsHtml = MOODS.map(function (m) {
       var active = state.selectedMood === m.id ? ' chip--active' : '';
-      var chipIcon = (m.id === 'zone' ? 'Mood=neutral.png' : m.id === 'neutral' ? 'Mood=zone.png' : 'Mood=' + m.id + '.png');
+      var chipIcon = (m.id === 'zone' ? 'Mood=neutral.png' : m.id === 'horror' ? 'Mood=horor.png' : 'Mood=' + m.id + '.png');
       return '<button type="button" class="chip chip--primary chip--mood' + active + '" data-mood="' + m.id + '">' +
         '<img class="chip__icon" src="assets/characters/' + chipIcon + '" alt="" width="20" height="20">' +
         '<span class="chip__label">' + m.label + '</span></button>';
@@ -654,7 +654,7 @@ function getRecommendationFromApi(options) {
           '</div>' +
         '</div>' +
         '<div class="screen-content">' +
-          '<p class="section-label">Твоё настроение</p>' +
+          '<p class="section-label">Какой вайбец хочешь?</p>' +
           '<div class="chips-mood-scroll" role="group" aria-label="Выберите настроение">' +
             '<div class="chips chips-mood">' + moodChipsHtml + '</div>' +
           '</div>' +
@@ -687,8 +687,6 @@ function getRecommendationFromApi(options) {
     if (characterBlock) {
       if (!state.selectedMood) {
         characterBlock.style.backgroundColor = '#CDD9F3';
-      } else if (state.selectedMood === 'neutral') {
-        characterBlock.style.backgroundColor = '';
       } else {
         characterBlock.style.backgroundColor = MOOD_BACKGROUND_MAP[state.selectedMood] || '';
       }
