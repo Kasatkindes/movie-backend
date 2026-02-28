@@ -397,6 +397,9 @@ function getRecommendationFromApi(options) {
     var key = String(originalTitle).trim();
     if (arr.indexOf(key) !== -1) return;
     arr.push(key);
+    if (arr.length > 200) {
+      arr.splice(0, arr.length - 200);
+    }
     try {
       localStorage.setItem(GLOBAL_HISTORY_KEY, JSON.stringify(arr));
     } catch (e) {}
@@ -735,7 +738,7 @@ function getRecommendationFromApi(options) {
         '</main>' +
         '<footer class="result-footer">' +
           '<button type="button" id="btn-retry-later" class="btn-primary">' +
-            '<span>Попробовать снова</span>' +
+            '<span>Подобрать фильм</span>' +
           '</button>' +
         '</footer>' +
       '</section>';
@@ -750,13 +753,13 @@ function getRecommendationFromApi(options) {
       };
       getRecommendationWithRetrySafe(opts, 1).then(function (result) {
         if (!result || result._error) {
-          renderServerErrorScreen('Сервис временно недоступен. Попробуйте ещё раз.');
+          renderServerErrorScreen('Не удалось получить фильм из каталога. Попробуйте ещё раз.');
           return;
         }
         movieQueue = result.recommendations || [];
         currentIndex = 0;
         if (!movieQueue.length) {
-          renderServerErrorScreen('Сервис временно недоступен. Попробуйте снова.');
+          renderServerErrorScreen('Не удалось получить фильм из каталога. Попробуйте ещё раз.');
           return;
         }
         renderMovie(movieQueue[0]);
@@ -959,10 +962,7 @@ function getRecommendationFromApi(options) {
    */
   function renderMovieCardFinal(finalData) {
     var rec = finalData.rec || null;
-    var baseOriginalTitle = (rec && rec.original_title && String(rec.original_title).trim()) ? String(rec.original_title).trim() : '';
-    var displayTitle = (finalData.title && String(finalData.title).trim())
-      ? String(finalData.title).trim()
-      : (baseOriginalTitle || 'Название недоступно');
+    var displayTitle = String(finalData.title || (rec && rec.original_title) || '').trim();
 
     var baseDesc = (rec && rec.description && String(rec.description).trim()) ? String(rec.description).trim() : '';
     var desc = (finalData.description && String(finalData.description).trim())
@@ -1214,13 +1214,13 @@ function getRecommendationFromApi(options) {
     };
     getRecommendationWithRetrySafe(opts, 1).then(function (result) {
       if (!result || result._error) {
-        renderServerErrorScreen('Сервис временно недоступен. Попробуйте ещё раз.');
+        renderServerErrorScreen('Не удалось получить фильм из каталога. Попробуйте ещё раз.');
         return;
       }
       movieQueue = result.recommendations || [];
       currentIndex = 0;
       if (!movieQueue.length) {
-        renderServerErrorScreen('Сервис временно недоступен. Попробуйте снова.');
+        renderServerErrorScreen('Не удалось получить фильм из каталога. Попробуйте ещё раз.');
         return;
       }
       renderMovie(movieQueue[0]);

@@ -231,6 +231,9 @@ async function resolveMovieViaTmdb(title, apiKey, year) {
     var movieRes = await fetch(movieUrl);
     if (!movieRes.ok) return null;
     var movieData = await movieRes.json();
+    if (!movieData || !movieData.title || !movieData.poster_path) {
+      return null;
+    }
 
     var posterPath = movieData.poster_path;
     var backdropPath = movieData.backdrop_path;
