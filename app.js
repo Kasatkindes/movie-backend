@@ -945,7 +945,13 @@ function getRecommendationFromApi(options) {
       onFindMovieClick();
       return;
     }
-    renderMovie(movieQueue[currentIndex]);
+
+    renderLoadingScreen();
+    callWithMinLoading(function () {
+      return Promise.resolve(movieQueue[currentIndex]);
+    }).then(function (movie) {
+      renderMovie(movie);
+    });
   }
 
   /**
