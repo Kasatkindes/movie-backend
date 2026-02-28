@@ -331,13 +331,13 @@ function getRecommendationFromApi(options) {
 
   const MOODS = [
     { id: 'laugh', label: 'Посмеяться' },
-    { id: 'romance', label: 'Романтика' },
-    { id: 'zone', label: 'Залипнуть' },
-    { id: 'sleep', label: 'Уснуть' },
-    { id: 'think', label: 'Подумать' },
     { id: 'inspire', label: 'Вдохновиться' },
+    { id: 'zone', label: 'Залипнуть' },
+    { id: 'think', label: 'Подумать' },
+    { id: 'horror', label: 'Обделаться' },
+    { id: 'romance', label: 'Романтика' },
     { id: 'cry', label: 'Поплакать' },
-    { id: 'horror', label: 'Обделаться' }
+    { id: 'sleep', label: 'Уснуть' }
   ];
 
   const EPOCHS = [
