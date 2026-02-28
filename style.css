@@ -598,13 +598,13 @@ body {
   object-fit: contain;
 }
 
-/* ========== Primary button (single source of truth) ========== */
+/* ========== PrimaryButton (single reusable component) ========== */
 .btn-primary {
   width: 100%;
   height: 56px;
   min-height: 56px;
   padding: 0 24px;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 28px;
   background: var(--btn-primary-bg);
   color: #ffffff;
@@ -616,14 +616,21 @@ body {
   justify-content: center;
   gap: 12px;
   cursor: pointer;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 8px 20px rgba(0, 0, 0, 0.35);
+  transition: filter 0.2s, transform 120ms ease;
 }
 
 .btn-primary:hover:not(:disabled) {
   background: var(--btn-primary-bg);
+  filter: brightness(1.05);
 }
 
 .btn-primary:active:not(:disabled) {
   background: var(--btn-primary-bg);
+  transform: scale(0.97);
 }
 
 .btn-primary:disabled {
