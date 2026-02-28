@@ -582,7 +582,7 @@ function getRecommendationFromApi(options) {
     var moodChipsHtml = MOODS.map(function (m) {
       var active = state.selectedMood === m.id ? ' chip--active' : '';
       var chipIcon = (m.id === 'zone' ? 'Mood=neutral.png' : m.id === 'neutral' ? 'Mood=zone.png' : 'Mood=' + m.id + '.png');
-      return '<button type="button" class="chip chip--mood' + active + '" data-mood="' + m.id + '">' +
+      return '<button type="button" class="chip chip--primary chip--mood' + active + '" data-mood="' + m.id + '">' +
         '<img class="chip__icon" src="assets/characters/' + chipIcon + '" alt="" width="20" height="20">' +
         '<span class="chip__label">' + m.label + '</span></button>';
     }).join('');

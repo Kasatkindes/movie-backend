@@ -457,6 +457,7 @@ body {
   margin-bottom: 20px;
 }
 
+/* Chip base (variant=secondary by default) */
 .chip {
   display: inline-flex;
   align-items: center;
@@ -484,6 +485,33 @@ body {
   border: none;
   color: var(--chip-active-text);
   box-shadow: 0 0 12px rgba(245, 196, 107, 0.25);
+}
+
+/* Chip variant=primary (liquid style) — mood chips */
+.chip.chip--primary {
+  background: rgba(36, 42, 52, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.chip.chip--primary:hover:not(:disabled):not(.chip--disabled) {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.chip.chip--primary.chip--active {
+  background: var(--chip-active-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--chip-active-text);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 4px 12px rgba(0, 0, 0, 0.35),
+    0 0 12px rgba(245, 196, 107, 0.25);
 }
 
 .chip.chip--disabled {
