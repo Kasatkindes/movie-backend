@@ -482,6 +482,19 @@ function getRecommendationFromApi(options) {
     return null;
   }
 
+  /** Ensures minimum 1500ms loading: duration = max(1500ms, actual request time). */
+  function callWithMinLoading(promiseFactory) {
+    var startTime = Date.now();
+    return Promise.resolve().then(promiseFactory).then(function (result) {
+      var elapsed = Date.now() - startTime;
+      var delay = elapsed < 1500 ? 1500 - elapsed : 0;
+      if (delay > 0) {
+        return new Promise(function (r) { setTimeout(r, delay); }).then(function () { return result; });
+      }
+      return result;
+    });
+  }
+
   /** Safe API call with retry on server/network errors only. Returns raw API result or error object. */
   function getRecommendationWithRetrySafe(options, maxRetries) {
     maxRetries = maxRetries == null ? 1 : maxRetries;
@@ -743,36 +756,7 @@ function getRecommendationFromApi(options) {
         '</footer>' +
       '</section>';
     app.querySelector('#btn-back-error').addEventListener('click', renderMoodScreen);
-    app.querySelector('#btn-retry-later').addEventListener('click', function () {
-      renderLoadingScreen();
-      var startTime = Date.now();
-      var opts = {
-        mood: state.selectedMood || 'neutral',
-        epoch: state.selectedEpoch,
-        rating: state.selectedRating,
-        popularity: state.selectedPopularity
-      };
-      getRecommendationWithRetrySafe(opts, 1).then(function (result) {
-        var elapsed = Date.now() - startTime;
-        var delay = elapsed < 1500 ? 1500 - elapsed : 0;
-        if (delay > 0) {
-          return new Promise(function (r) { setTimeout(r, delay); }).then(function () { return result; });
-        }
-        return result;
-      }).then(function (result) {
-        if (!result || result._error) {
-          renderServerErrorScreen('Не удалось получить фильм из каталога. Попробуйте ещё раз.');
-          return;
-        }
-        movieQueue = result.recommendations || [];
-        currentIndex = 0;
-        if (!movieQueue.length) {
-          renderServerErrorScreen('Не удалось получить фильм из каталога. Попробуйте ещё раз.');
-          return;
-        }
-        renderMovie(movieQueue[0]);
-      });
-    });
+    app.querySelector('#btn-retry-later').addEventListener('click', doFetchRecommendations);
   }
 
   /** Shown when user has seen all movies in current batch. Disables "Поменяй" and shows message. */
@@ -1197,6 +1181,29 @@ function getRecommendationFromApi(options) {
     }
   }
 
+  function doFetchRecommendations() {
+    renderLoadingScreen();
+    var opts = {
+      mood: state.selectedMood || 'neutral',
+      epoch: state.selectedEpoch,
+      rating: state.selectedRating,
+      popularity: state.selectedPopularity
+    };
+    callWithMinLoading(function () { return getRecommendationWithRetrySafe(opts, 1); }).then(function (result) {
+      if (!result || result._error) {
+        renderServerErrorScreen('Не удалось получить фильм из каталога. Попробуйте ещё раз.');
+        return;
+      }
+      movieQueue = result.recommendations || [];
+      currentIndex = 0;
+      if (!movieQueue.length) {
+        renderServerErrorScreen('Не удалось получить фильм из каталога. Попробуйте ещё раз.');
+        return;
+      }
+      renderMovie(movieQueue[0]);
+    });
+  }
+
   function onFindMovieClick() {
     generateCounter++;
     if (generateCounter >= 5 && canShowFeedback() && !sessionStorage.getItem('feedback_shown_this_session')) {
@@ -1213,34 +1220,7 @@ function getRecommendationFromApi(options) {
         }
       });
     }
-    renderLoadingScreen();
-    var startTime = Date.now();
-    var opts = {
-      mood: state.selectedMood || 'neutral',
-      epoch: state.selectedEpoch,
-      rating: state.selectedRating,
-      popularity: state.selectedPopularity
-    };
-    getRecommendationWithRetrySafe(opts, 1).then(function (result) {
-      var elapsed = Date.now() - startTime;
-      var delay = elapsed < 1500 ? 1500 - elapsed : 0;
-      if (delay > 0) {
-        return new Promise(function (r) { setTimeout(r, delay); }).then(function () { return result; });
-      }
-      return result;
-    }).then(function (result) {
-      if (!result || result._error) {
-        renderServerErrorScreen('Не удалось получить фильм из каталога. Попробуйте ещё раз.');
-        return;
-      }
-      movieQueue = result.recommendations || [];
-      currentIndex = 0;
-      if (!movieQueue.length) {
-        renderServerErrorScreen('Не удалось получить фильм из каталога. Попробуйте ещё раз.');
-        return;
-      }
-      renderMovie(movieQueue[0]);
-    });
+    doFetchRecommendations();
   }
 
   (function initWelcomeOverlay() {
