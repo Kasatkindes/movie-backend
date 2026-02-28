@@ -647,77 +647,6 @@ body {
   overflow: hidden;
 }
 
-/* Movie screen header: Back | Mood | Favorite */
-.movie-screen-header {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 16px 0;
-  background: transparent;
-}
-
-/* HeaderIconButton: reusable 36x36 rounded icon button */
-.header-icon-btn {
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border: none;
-  border-radius: 12px;
-  background: #242A34;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: background 0.2s;
-}
-
-.header-icon-btn:hover {
-  background: #2d3440;
-}
-
-.header-icon-btn img {
-  width: 24px;
-  height: 24px;
-  display: block;
-  object-fit: contain;
-}
-
-/* Mood block (center of header) */
-.movie-header-mood {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  justify-content: center;
-  min-width: 0;
-}
-
-.movie-header-mood__icon {
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
-  object-fit: contain;
-}
-
-.movie-header-mood__label {
-  font-size: 16px;
-  font-weight: 600;
-  color: #FFFFFF;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.movie-screen-change-btn {
-  width: 100%;
-}
-
 .screen-movie .result-header {
   position: sticky;
   top: 0;
@@ -774,7 +703,7 @@ body {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px 12px;
-  margin: 16px 0;
+  margin: 0 0 20px;
   padding: 0;
 }
 
@@ -814,7 +743,7 @@ body {
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-  padding: 64px 16px 100px;
+  padding: 20px 16px 120px;
   margin-top: 0;
 }
 
@@ -825,7 +754,7 @@ body {
   aspect-ratio: 16 / 9;
   border-radius: 20px;
   overflow: hidden;
-  margin: 0 0 16px;
+  margin: 0 0 20px;
   background: linear-gradient(135deg, #5a4a7a 0%, #3d2e5c 100%);
   display: flex;
   align-items: center;
@@ -966,12 +895,13 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
+  height: 108px;
   background: #161B22;
   z-index: 5;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 16px;
+  padding-top: 16px;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.35);
 }
 
