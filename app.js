@@ -331,11 +331,11 @@ function getRecommendationFromApi(options) {
 
   const MOODS = [
     { id: 'laugh', label: 'Посмеяться' },
-    { id: 'inspire', label: 'Вдохновиться' },
+    { id: 'romance', label: 'Романтику' },
     { id: 'zone', label: 'Залипнуть' },
     { id: 'think', label: 'Подумать' },
     { id: 'horror', label: 'Обделаться' },
-    { id: 'romance', label: 'Романтика' },
+    { id: 'inspire', label: 'Вдохновиться' },
     { id: 'cry', label: 'Поплакать' },
     { id: 'sleep', label: 'Уснуть' }
   ];
