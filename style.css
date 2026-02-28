@@ -420,16 +420,33 @@ body {
   margin-bottom: 20px;
 }
 
-/* Mood chips: 2 per row, 4 rows, no nested scroll */
-.chips.chips-mood {
+/* Mood chips: 2 rows, horizontal scroll per row */
+.mood-rows {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
   margin-bottom: 20px;
 }
 
-.chips.chips-mood .chip {
-  flex: 0 0 calc((100% - 8px) / 2);
+.mood-row-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.mood-row-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.mood-row {
+  display: flex;
+  gap: 8px;
+  width: max-content;
+}
+
+.mood-row .chip {
+  flex-shrink: 0;
 }
 
 .chips-epoch,

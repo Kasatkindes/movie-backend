@@ -614,13 +614,17 @@ function getRecommendationFromApi(options) {
   function renderMoodScreen() {
     var characterSrc = getCharacterSrc(state.selectedMood);
 
-    var moodChipsHtml = MOODS.map(function (m) {
+    var toMoodChip = function (m) {
       var active = state.selectedMood === m.id ? ' chip--active' : '';
       var chipIcon = (m.id === 'zone' ? 'Mood=neutral.png' : m.id === 'horror' ? 'Mood=horor.png' : 'Mood=' + m.id + '.png');
       return '<button type="button" class="chip chip--primary chip--mood' + active + '" data-mood="' + m.id + '">' +
         '<img class="chip__icon" src="assets/characters/' + chipIcon + '" alt="" width="20" height="20">' +
         '<span class="chip__label">' + m.label + '</span></button>';
-    }).join('');
+    };
+    var firstRow = MOODS.slice(0, 4);
+    var secondRow = MOODS.slice(4, 8);
+    var firstRowChipsHtml = firstRow.map(toMoodChip).join('');
+    var secondRowChipsHtml = secondRow.map(toMoodChip).join('');
 
     var epochChipsHtml = EPOCHS.map(function (e) {
       var active = state.selectedEpoch === e.id ? ' chip--active' : '';
@@ -655,7 +659,14 @@ function getRecommendationFromApi(options) {
         '</div>' +
         '<div class="screen-content">' +
           '<p class="section-label">Какой вайбец хочешь?</p>' +
-          '<div class="chips chips-mood" role="group" aria-label="Выберите настроение">' + moodChipsHtml + '</div>' +
+          '<div class="mood-rows" role="group" aria-label="Выберите настроение">' +
+            '<div class="mood-row-scroll">' +
+              '<div class="mood-row">' + firstRowChipsHtml + '</div>' +
+            '</div>' +
+            '<div class="mood-row-scroll">' +
+              '<div class="mood-row">' + secondRowChipsHtml + '</div>' +
+            '</div>' +
+          '</div>' +
           '<div id="filters-trigger-slot-top" class="filters-trigger-slot">' + triggerSlotTopContent + '</div>' +
           '<div id="filters-inline" class="filters-inline' + filtersOpenClass + '">' +
             '<p class="section-label">Эпоха</p>' +
@@ -690,7 +701,7 @@ function getRecommendationFromApi(options) {
       }
     }
 
-    app.querySelector('.chips-mood').addEventListener('click', onMoodClick);
+    app.querySelector('.mood-rows').addEventListener('click', onMoodClick);
     var triggerBtn = app.querySelector('#btn-toggle-filters');
     if (triggerBtn) {
       triggerBtn.addEventListener('click', function () {
