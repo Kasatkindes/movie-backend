@@ -745,6 +745,7 @@ function getRecommendationFromApi(options) {
     app.querySelector('#btn-back-error').addEventListener('click', renderMoodScreen);
     app.querySelector('#btn-retry-later').addEventListener('click', function () {
       renderLoadingScreen();
+      var startTime = Date.now();
       var opts = {
         mood: state.selectedMood || 'neutral',
         epoch: state.selectedEpoch,
@@ -752,6 +753,13 @@ function getRecommendationFromApi(options) {
         popularity: state.selectedPopularity
       };
       getRecommendationWithRetrySafe(opts, 1).then(function (result) {
+        var elapsed = Date.now() - startTime;
+        var delay = elapsed < 1500 ? 1500 - elapsed : 0;
+        if (delay > 0) {
+          return new Promise(function (r) { setTimeout(r, delay); }).then(function () { return result; });
+        }
+        return result;
+      }).then(function (result) {
         if (!result || result._error) {
           renderServerErrorScreen('Не удалось получить фильм из каталога. Попробуйте ещё раз.');
           return;
@@ -1206,6 +1214,7 @@ function getRecommendationFromApi(options) {
       });
     }
     renderLoadingScreen();
+    var startTime = Date.now();
     var opts = {
       mood: state.selectedMood || 'neutral',
       epoch: state.selectedEpoch,
@@ -1213,6 +1222,13 @@ function getRecommendationFromApi(options) {
       popularity: state.selectedPopularity
     };
     getRecommendationWithRetrySafe(opts, 1).then(function (result) {
+      var elapsed = Date.now() - startTime;
+      var delay = elapsed < 1500 ? 1500 - elapsed : 0;
+      if (delay > 0) {
+        return new Promise(function (r) { setTimeout(r, delay); }).then(function () { return result; });
+      }
+      return result;
+    }).then(function (result) {
       if (!result || result._error) {
         renderServerErrorScreen('Не удалось получить фильм из каталога. Попробуйте ещё раз.');
         return;

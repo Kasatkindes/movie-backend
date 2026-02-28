@@ -344,73 +344,81 @@ module.exports = async (req, res) => {
     }
 
     const client = new Groq({ apiKey });
-    var raw = await client.chat.completions.create({
-      model: MODEL,
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserMessage(excludeList) }
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.6,
-      max_tokens: 2000
-    }).then(function (completion) {
-      var content = completion && completion.choices && completion.choices[0] && completion.choices[0].message && completion.choices[0].message.content;
-      if (typeof content !== 'string' || !content.trim()) return null;
-      try {
-        return JSON.parse(content);
-      } catch (_) {
-        return null;
-      }
-    }).catch(function () {
-      return null;
-    });
-
-    var list = (raw && raw.movies && Array.isArray(raw.movies)) ? raw.movies : [];
-    console.group('🎬 LLM RAW OUTPUT');
-    console.log('Raw LLM JSON:', raw);
-    console.log('Raw movies array:', list);
-    console.log('Count from LLM:', list.length);
-    console.groupEnd();
-
-    var globalNorm = (globalHistory || []).map(function (t) { return normalizeTitle(t); });
-    var seenTitles = {};
-    var titlesToResolve = [];
-    for (var i = 0; i < list.length && titlesToResolve.length < BATCH_SIZE; i++) {
-      var item = list[i];
-      var title = (item && (item.title != null || item.original_title != null)) ? String(item.title || item.original_title).trim() : '';
-      if (!title) continue;
-      var key = normalizeTitle(title);
-      if (seenTitles[key]) continue;
-      seenTitles[key] = true;
-      if (isInHistory(sessionId, key)) continue;
-      if (globalNorm.indexOf(key) !== -1) continue;
-      titlesToResolve.push(title);
-    }
-
-    console.group('🧹 AFTER TITLE FILTERING');
-    console.log('Titles to resolve:', titlesToResolve);
-    console.log('Session history:', history);
-    console.log('Global history:', globalHistory);
-    console.groupEnd();
-
     var recommendations = [];
-    var seenIds = {};
-    for (var t = 0; t < titlesToResolve.length; t++) {
-      var llmItem = list.find(function (x) {
-        var xt = (x && (x.title != null || x.original_title != null)) ? String(x.title || x.original_title).trim() : '';
-        return xt && normalizeTitle(xt) === normalizeTitle(titlesToResolve[t]);
+
+    for (var attempt = 0; attempt < 2; attempt++) {
+      var raw = await client.chat.completions.create({
+        model: MODEL,
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: buildUserMessage(excludeList) }
+        ],
+        response_format: { type: 'json_object' },
+        temperature: 0.6,
+        max_tokens: 2000
+      }).then(function (completion) {
+        var content = completion && completion.choices && completion.choices[0] && completion.choices[0].message && completion.choices[0].message.content;
+        if (typeof content !== 'string' || !content.trim()) return null;
+        try {
+          return JSON.parse(content);
+        } catch (_) {
+          return null;
+        }
+      }).catch(function () {
+        return null;
       });
-      var year = llmItem && llmItem.year != null ? llmItem.year : null;
-      var resolved = await resolveMovieViaTmdb(titlesToResolve[t], tmdbApiKey, year);
-      if (resolved) {
-        console.log('✅ RESOLVED MOVIE:', resolved);
-      } else {
-        console.log('❌ SKIPPED (TMDB failed or filtered):', titlesToResolve[t]);
+
+      if (!raw) break;
+
+      var list = (raw && raw.movies && Array.isArray(raw.movies)) ? raw.movies : [];
+      console.group('🎬 LLM RAW OUTPUT');
+      console.log('Raw LLM JSON:', raw);
+      console.log('Raw movies array:', list);
+      console.log('Count from LLM:', list.length);
+      console.groupEnd();
+
+      var globalNorm = (globalHistory || []).map(function (t) { return normalizeTitle(t); });
+      var seenTitles = {};
+      var titlesToResolve = [];
+      for (var i = 0; i < list.length && titlesToResolve.length < BATCH_SIZE; i++) {
+        var item = list[i];
+        var title = (item && (item.title != null || item.original_title != null)) ? String(item.title || item.original_title).trim() : '';
+        if (!title) continue;
+        var key = normalizeTitle(title);
+        if (seenTitles[key]) continue;
+        seenTitles[key] = true;
+        if (isInHistory(sessionId, key)) continue;
+        if (globalNorm.indexOf(key) !== -1) continue;
+        titlesToResolve.push(title);
       }
-      if (!resolved) continue;
-      if (seenIds[resolved.tmdb_id]) continue;
-      seenIds[resolved.tmdb_id] = true;
-      recommendations.push(resolved);
+
+      console.group('🧹 AFTER TITLE FILTERING');
+      console.log('Titles to resolve:', titlesToResolve);
+      console.log('Session history:', history);
+      console.log('Global history:', globalHistory);
+      console.groupEnd();
+
+      var seenIds = {};
+      recommendations = [];
+      for (var t = 0; t < titlesToResolve.length; t++) {
+        var llmItem = list.find(function (x) {
+          var xt = (x && (x.title != null || x.original_title != null)) ? String(x.title || x.original_title).trim() : '';
+          return xt && normalizeTitle(xt) === normalizeTitle(titlesToResolve[t]);
+        });
+        var year = llmItem && llmItem.year != null ? llmItem.year : null;
+        var resolved = await resolveMovieViaTmdb(titlesToResolve[t], tmdbApiKey, year);
+        if (resolved) {
+          console.log('✅ RESOLVED MOVIE:', resolved);
+        } else {
+          console.log('❌ SKIPPED (TMDB failed or filtered):', titlesToResolve[t]);
+        }
+        if (!resolved) continue;
+        if (seenIds[resolved.tmdb_id]) continue;
+        seenIds[resolved.tmdb_id] = true;
+        recommendations.push(resolved);
+      }
+
+      if (recommendations.length > 0) break;
     }
 
     for (var r = 0; r < recommendations.length; r++) {
