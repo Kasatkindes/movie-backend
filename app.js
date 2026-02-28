@@ -656,12 +656,9 @@ function getRecommendationFromApi(options) {
         '</div>' +
         '<div class="screen-content">' +
           '<p class="section-label">Какой вайбец хочешь?</p>' +
-          '<div class="mood-rows" role="group" aria-label="Выберите настроение">' +
-            '<div class="mood-row-scroll">' +
-              '<div class="mood-row">' + firstRowChipsHtml + '</div>' +
-            '</div>' +
-            '<div class="mood-row-scroll">' +
-              '<div class="mood-row">' + secondRowChipsHtml + '</div>' +
+          '<div class="mood-scroll" role="group" aria-label="Выберите настроение">' +
+            '<div class="mood-grid">' +
+              moodChipsHtml +
             '</div>' +
           '</div>' +
           '<div id="filters-trigger-slot-top" class="filters-trigger-slot">' + triggerSlotTopContent + '</div>' +
