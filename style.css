@@ -420,32 +420,28 @@ body {
   margin-bottom: 20px;
 }
 
-/* Mood chips: 2 rows, horizontal scroll per row */
-.mood-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 20px;
-}
-
-.mood-row-scroll {
+/* Mood chips: one horizontal scroll, two rows move together */
+.mood-scroll {
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  margin-bottom: 20px;
 }
 
-.mood-row-scroll::-webkit-scrollbar {
+.mood-scroll::-webkit-scrollbar {
   display: none;
 }
 
-.mood-row {
+.mood-grid {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  height: 104px;
   width: max-content;
 }
 
-.mood-row .chip {
+.mood-grid .chip {
   flex-shrink: 0;
 }
 

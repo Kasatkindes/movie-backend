@@ -621,10 +621,7 @@ function getRecommendationFromApi(options) {
         '<img class="chip__icon" src="assets/characters/' + chipIcon + '" alt="" width="20" height="20">' +
         '<span class="chip__label">' + m.label + '</span></button>';
     };
-    var firstRow = MOODS.slice(0, 4);
-    var secondRow = MOODS.slice(4, 8);
-    var firstRowChipsHtml = firstRow.map(toMoodChip).join('');
-    var secondRowChipsHtml = secondRow.map(toMoodChip).join('');
+    var moodChipsHtml = MOODS.map(toMoodChip).join('');
 
     var epochChipsHtml = EPOCHS.map(function (e) {
       var active = state.selectedEpoch === e.id ? ' chip--active' : '';
@@ -701,7 +698,7 @@ function getRecommendationFromApi(options) {
       }
     }
 
-    app.querySelector('.mood-rows').addEventListener('click', onMoodClick);
+    app.querySelector('.mood-scroll').addEventListener('click', onMoodClick);
     var triggerBtn = app.querySelector('#btn-toggle-filters');
     if (triggerBtn) {
       triggerBtn.addEventListener('click', function () {
