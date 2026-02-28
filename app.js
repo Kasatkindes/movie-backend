@@ -1017,6 +1017,7 @@ function getRecommendationFromApi(options) {
         '</main>' +
         '<div class="movie-result-bottom-panel">' +
           '<button type="button" id="btn-another" class="btn-primary movie-screen-change-btn">' +
+            '<img class="btn-icon" src="assets/icons/reload.svg" alt="" width="24" height="24">' +
             '<span>Сменить фильм</span>' +
           '</button>' +
         '</div>' +
