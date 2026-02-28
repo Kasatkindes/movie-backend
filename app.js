@@ -461,6 +461,41 @@ function getRecommendationFromApi(options) {
     }, 3000);
   }
 
+  var INFO_ICON_SVG = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" fill="none"/><path d="M12 11v4M12 8h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+
+  function showFavoriteToast() {
+    var existing = document.querySelector('.favorite-toast');
+    if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+    var wrap = document.createElement('div');
+    wrap.className = 'favorite-toast favorite-toast--entering';
+    wrap.setAttribute('role', 'dialog');
+    wrap.setAttribute('aria-label', 'Уведомление');
+    wrap.innerHTML =
+      '<button type="button" class="favorite-toast__close" aria-label="Закрыть">' +
+        '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>' +
+      '</button>' +
+      '<div class="favorite-toast__icon">' + INFO_ICON_SVG + '</div>' +
+      '<div class="favorite-toast__body">' +
+        '<p class="favorite-toast__title">Пока не умеем сохранять фильмы</p>' +
+        '<p class="favorite-toast__text">Мы работаем над этим функционалом.<br>В следующих релизах обязательно добавим сохранение.<br>А пока — сделайте скриншот или запомните название фильма.</p>' +
+      '</div>';
+    document.body.appendChild(wrap);
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        wrap.classList.remove('favorite-toast--entering');
+        wrap.classList.add('favorite-toast--visible');
+      });
+    });
+    function closeToast() {
+      wrap.classList.remove('favorite-toast--visible');
+      wrap.classList.add('favorite-toast--leaving');
+      setTimeout(function () {
+        if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+      }, 220);
+    }
+    wrap.querySelector('.favorite-toast__close').addEventListener('click', closeToast);
+  }
+
   /** Глобальная история показанных за сессию фильмов (по title). */
   var sessionHistory = [];
 
@@ -1028,30 +1063,7 @@ function getRecommendationFromApi(options) {
     updateFavoriteButtonState(btnFavorite, favoriteKey);
     if (btnFavorite) {
       btnFavorite.addEventListener('click', function () {
-        var titleEl = document.getElementById('result-title');
-        var title = titleEl ? titleEl.textContent.trim() : '';
-        var isActive = btnFavorite.classList.contains('is-active');
-        if (isActive) {
-          removeLikedMovie(title);
-        } else {
-          var added = addLikedMovie(title);
-          if (added && window.plausible) {
-            plausible('add_to_favorites', {
-              props: {
-                title: title || 'unknown'
-              }
-            });
-          }
-          if (added) {
-            try {
-              if (!localStorage.getItem(HAS_SEEN_LIKE_TOOLTIP_KEY)) {
-                showLikeTooltip();
-                localStorage.setItem(HAS_SEEN_LIKE_TOOLTIP_KEY, 'true');
-              }
-            } catch (e) {}
-          }
-        }
-        updateFavoriteButtonState(btnFavorite, title);
+        showFavoriteToast();
       });
     }
     if (window.plausible) {
@@ -1118,23 +1130,7 @@ function getRecommendationFromApi(options) {
     updateFavoriteButtonState(btnFavorite, displayTitle);
     if (btnFavorite) {
       btnFavorite.addEventListener('click', function () {
-        var titleEl = document.getElementById('result-title');
-        var title = titleEl ? titleEl.textContent.trim() : '';
-        var isActive = btnFavorite.classList.contains('is-active');
-        if (isActive) {
-          removeLikedMovie(title);
-        } else {
-          var added = addLikedMovie(title);
-          if (added) {
-            try {
-              if (!localStorage.getItem(HAS_SEEN_LIKE_TOOLTIP_KEY)) {
-                showLikeTooltip();
-                localStorage.setItem(HAS_SEEN_LIKE_TOOLTIP_KEY, 'true');
-              }
-            } catch (e) {}
-          }
-        }
-        updateFavoriteButtonState(btnFavorite, title);
+        showFavoriteToast();
       });
     }
   }
