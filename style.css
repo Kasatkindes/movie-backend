@@ -220,8 +220,8 @@ body {
   margin: 0;
 }
 
-/* ========== Bottom panel: FIXED, CTA only ========== */
-.screen-mood .bottom-panel {
+/* ========== BottomBarContainer (shared component) ========== */
+.bottom-bar-container {
   position: fixed;
   bottom: 0;
   left: 50%;
@@ -237,6 +237,7 @@ body {
   flex-shrink: 0;
   z-index: 10;
 }
+
 
 .screen-mood .bottom-panel__inner--cta-only {
   background: transparent;
@@ -928,20 +929,14 @@ body {
   object-fit: contain;
 }
 
-/* Fixed bottom panel on movie result screen */
+/* Fixed bottom panel on movie result screen — uses BottomBarContainer */
 .screen-movie .movie-result-bottom-panel {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 108px;
-  background: #161B22;
-  z-index: 5;
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding-top: 16px;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.35);
+  height: 108px;
+  padding: 16px 16px 36px 16px;
+  box-sizing: border-box;
 }
 
 .screen-movie .bottom-actions {

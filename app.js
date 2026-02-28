@@ -638,7 +638,7 @@ function getRecommendationFromApi(options) {
             '<div id="filters-trigger-slot-bottom" class="filters-trigger-slot">' + triggerSlotBottomContent + '</div>' +
           '</div>' +
         '</div>' +
-        '<div class="bottom-panel">' +
+        '<div class="bottom-panel bottom-bar-container">' +
           '<div class="bottom-panel__inner bottom-panel__inner--cta-only">' +
             '<button type="button" id="btn-find-movie" class="btn-primary">' +
               '<img class="btn-icon" src="assets/icons/play.svg" alt="" width="24" height="24">' +
@@ -998,7 +998,7 @@ function getRecommendationFromApi(options) {
             '<p id="result-description" class="result-description">' + escapeHtml(desc) + '</p>' +
           '</div>' +
         '</main>' +
-        '<div class="movie-result-bottom-panel">' +
+        '<div class="movie-result-bottom-panel bottom-bar-container">' +
           '<div class="bottom-actions">' +
             '<button type="button" id="btn-back" class="btn-secondary-circle" aria-label="Назад">' +
               '<img src="assets/icons/back.svg" alt="" width="24" height="24">' +
@@ -1095,7 +1095,7 @@ function getRecommendationFromApi(options) {
             '<p id="result-description" class="result-description">' + escapeHtml(movie.description) + '</p>' +
           '</div>' +
         '</main>' +
-        '<div class="movie-result-bottom-panel">' +
+        '<div class="movie-result-bottom-panel bottom-bar-container">' +
           '<div class="bottom-actions">' +
             '<button type="button" id="btn-back" class="btn-secondary-circle" aria-label="Назад">' +
               '<img src="assets/icons/back.svg" alt="" width="24" height="24">' +
