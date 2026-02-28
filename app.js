@@ -984,9 +984,26 @@ function getRecommendationFromApi(options) {
       ? '<span id="result-imdb" class="imdb-badge">' + IMDB_ICON_SVG + '<span class="imdb-badge__rating">≈ ' + ratingVal + '</span></span>'
       : '<span id="result-imdb" class="imdb-badge" style="display:none">' + IMDB_ICON_SVG + '<span class="imdb-badge__rating"></span></span>';
     var favoriteKey = displayTitle;
+    var moodLabel = 'Настроение';
+    for (var m = 0; m < MOODS.length; m++) {
+      if (MOODS[m].id === state.selectedMood) { moodLabel = MOODS[m].label; break; }
+    }
+    var moodIconSrc = getCharacterSrc(state.selectedMood);
 
     app.innerHTML =
       '<section class="screen screen-movie">' +
+        '<header class="movie-screen-header">' +
+          '<button type="button" id="btn-back" class="header-icon-btn" aria-label="Назад">' +
+            '<img src="assets/icons/back.svg" alt="" width="24" height="24">' +
+          '</button>' +
+          '<div class="movie-header-mood">' +
+            '<img class="movie-header-mood__icon" src="' + escapeHtml(moodIconSrc) + '" alt="" width="24" height="24">' +
+            '<span class="movie-header-mood__label">' + escapeHtml(moodLabel) + '</span>' +
+          '</div>' +
+          '<button type="button" id="btn-favorite" class="header-icon-btn" aria-label="В избранное">' +
+            '<img src="assets/icons/favourite_off.svg" alt="" width="24" height="24">' +
+          '</button>' +
+        '</header>' +
         '<main class="result-content">' +
           '<div id="result-backdrop" class="result-backdrop">' + posterHtml + '</div>' +
           '<div class="result-meta-row">' +
@@ -999,18 +1016,9 @@ function getRecommendationFromApi(options) {
           '</div>' +
         '</main>' +
         '<div class="movie-result-bottom-panel">' +
-          '<div class="bottom-actions">' +
-            '<button type="button" id="btn-back" class="btn-secondary-circle" aria-label="Назад">' +
-              '<img src="assets/icons/back.svg" alt="" width="24" height="24">' +
-            '</button>' +
-            '<button type="button" id="btn-another" class="btn-primary">' +
-              '<img class="btn-icon" src="assets/icons/reload.svg" alt="" width="24" height="24">' +
-              '<span>Поменяй</span>' +
-            '</button>' +
-            '<button type="button" id="btn-favorite" class="btn-secondary-circle" aria-label="В избранное">' +
-              '<img src="assets/icons/favourite_off.svg" alt="" width="24" height="24">' +
-            '</button>' +
-          '</div>' +
+          '<button type="button" id="btn-another" class="btn-primary movie-screen-change-btn">' +
+            '<span>Сменить фильм</span>' +
+          '</button>' +
         '</div>' +
       '</section>';
 
