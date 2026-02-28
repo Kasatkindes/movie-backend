@@ -384,33 +384,26 @@ body {
   color: var(--chip-text);
 }
 
-/* ========== Mood chips: two rows, horizontal scroll ========== */
+/* ========== Mood chips: two rows, 4 per row ========== */
 .chips-mood-scroll {
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  margin: 0 -16px 20px;
-  padding: 0 16px;
-  scrollbar-width: none;
-}
-
-.chips-mood-scroll::-webkit-scrollbar {
-  display: none;
+  margin: 0 0 20px;
+  padding: 0;
 }
 
 .chips.chips-mood {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin: 0;
 }
 
 .chips.chips-mood .chip {
+  flex: 0 0 calc((100% - 24px) / 4);
   margin: 0;
-  min-width: 0;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  gap: 10px;
 }
 
 /* ========== Era chips: single row, horizontal scroll (Filters screen) ========== */
