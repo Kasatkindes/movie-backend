@@ -166,6 +166,7 @@ body {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   padding: 16px 16px 24px;
   padding-bottom: 140px;
@@ -384,12 +385,6 @@ body {
   color: var(--chip-text);
 }
 
-/* ========== Mood chips: two rows, 4 per row ========== */
-.chips-mood-scroll {
-  margin: 0 0 20px;
-  padding: 0;
-}
-
 /* ========== Era chips: single row, horizontal scroll (Filters screen) ========== */
 .chips-epoch-scroll {
   overflow-x: auto;
@@ -425,20 +420,16 @@ body {
   margin-bottom: 20px;
 }
 
-/* FORCE mood grid layout */
+/* Mood chips: 2 per row, 4 rows, no nested scroll */
 .chips.chips-mood {
-  display: grid !important;
-  grid-template-columns: repeat(4, 1fr) !important;
-  gap: 8px !important;
-  margin: 0 !important;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
 }
 
 .chips.chips-mood .chip {
-  width: 100%;
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 10px;
+  flex: 0 0 calc((100% - 8px) / 2);
 }
 
 .chips-epoch,

@@ -655,9 +655,7 @@ function getRecommendationFromApi(options) {
         '</div>' +
         '<div class="screen-content">' +
           '<p class="section-label">Какой вайбец хочешь?</p>' +
-          '<div class="chips-mood-scroll" role="group" aria-label="Выберите настроение">' +
-            '<div class="chips chips-mood">' + moodChipsHtml + '</div>' +
-          '</div>' +
+          '<div class="chips chips-mood" role="group" aria-label="Выберите настроение">' + moodChipsHtml + '</div>' +
           '<div id="filters-trigger-slot-top" class="filters-trigger-slot">' + triggerSlotTopContent + '</div>' +
           '<div id="filters-inline" class="filters-inline' + filtersOpenClass + '">' +
             '<p class="section-label">Эпоха</p>' +
@@ -729,11 +727,6 @@ function getRecommendationFromApi(options) {
     }
     app.querySelector('#btn-find-movie').addEventListener('click', onFindMovieClick);
 
-    if (state.savedMoodScrollLeft != null) {
-      var scrollEl = app.querySelector('.chips-mood-scroll');
-      if (scrollEl) scrollEl.scrollLeft = state.savedMoodScrollLeft;
-      state.savedMoodScrollLeft = null;
-    }
   }
 
   function renderLoadingScreen() {
@@ -1136,8 +1129,6 @@ function getRecommendationFromApi(options) {
   function onMoodClick(e) {
     var chip = e.target.closest('.chip[data-mood]');
     if (!chip) return;
-    var scrollContainer = app.querySelector('.chips-mood-scroll');
-    if (scrollContainer) state.savedMoodScrollLeft = scrollContainer.scrollLeft;
     state.selectedMood = chip.dataset.mood;
     renderMoodScreen();
   }
