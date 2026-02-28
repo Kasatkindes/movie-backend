@@ -761,7 +761,7 @@ function getRecommendationFromApi(options) {
 
   /** Shown when user has seen all movies in current batch. Disables "Поменяй" and shows message. */
   function renderNoMoreInBatchScreen() {
-    var message = 'В этой подборке больше нет фильмов. Нажмите «Подобрать фильм» для новой подборки.';
+    var message = 'Что-то пошло не так и рекомендации сбросились. Нажмите «Подобрать фильм», и попробуем ещё раз.';
     app.innerHTML =
       '<section class="screen screen-movie screen-no-more">' +
         '<header class="result-header">' +
@@ -824,7 +824,7 @@ function getRecommendationFromApi(options) {
     overlay.className = 'feedback-overlay';
     overlay.setAttribute('role', 'dialog');
     overlay.setAttribute('aria-label', 'Обратная связь');
-    overlay.innerHTML = '<div class="feedback-modal"><button type="button" class="feedback-close-btn" aria-label="Закрыть">&times;</button><h3 class="feedback-title">Как тебе подборка?</h3><div class="feedback-stars"></div><textarea class="feedback-textarea" placeholder="Комментарий (необязательно)" rows="3"></textarea><button type="button" class="btn-primary feedback-submit-btn">Отправить</button></div>';
+    overlay.innerHTML = '<div class="feedback-modal"><button type="button" class="feedback-close-btn" aria-label="Закрыть">&times;</button><h3 class="feedback-title">Как тебе рекомендации?</h3><div class="feedback-stars"></div><textarea class="feedback-textarea" placeholder="Комментарий (необязательно)" rows="3"></textarea><button type="button" class="btn-primary feedback-submit-btn">Отправить</button></div>';
     overlay.addEventListener('click', function (e) {
       if (e.target === overlay) {
         setFeedbackDismissedNow();
@@ -1197,13 +1197,13 @@ function getRecommendationFromApi(options) {
     };
     callWithMinLoading(function () { return getRecommendationWithRetrySafe(opts, 1); }).then(function (result) {
       if (!result || result._error) {
-        renderServerErrorScreen('Не удалось получить фильм из каталога. Попробуйте ещё раз.');
+        renderServerErrorScreen('Интернет немножечко подзабил — рекомендации вернуть не смогли. Попробуй ещё разочек нажать.');
         return;
       }
       movieQueue = result.recommendations || [];
       currentIndex = 0;
       if (!movieQueue.length) {
-        renderServerErrorScreen('Не удалось получить фильм из каталога. Попробуйте ещё раз.');
+        renderServerErrorScreen('Интернет немножечко подзабил — рекомендации вернуть не смогли. Попробуй ещё разочек нажать.');
         return;
       }
       renderMovie(movieQueue[0]);
