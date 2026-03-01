@@ -965,13 +965,6 @@ function getRecommendationFromApi(options) {
         }
       });
     }
-    if (Math.random() < 0.1) {
-      try {
-        var snd = new Audio('assets/sound/core_sound.mp3');
-        snd.play().catch(function () {});
-      } catch (e) {}
-    }
-
     currentIndex++;
 
     if (currentIndex >= movieQueue.length) {
