@@ -7,7 +7,7 @@ const EXCLUDE_MAX = 10;
 const SESSION_HISTORY_MAX = 100;
 const BATCH_SIZE = 5;
 
-/** In-memory session storage: sessionId -> array of normalized original_title (all movies shown in this session). */
+/** In-memory session storage: sessionId -> array of tmdb_id (numbers or strings). */
 const sessionStore = new Map();
 
 /** Per-session queue of pre-fetched recommendations. Refill via LLM when empty. */
@@ -20,22 +20,33 @@ function normalizeTitle(s) {
   return (s == null ? '' : String(s)).trim().toLowerCase();
 }
 
+function normId(id) {
+  if (id == null) return '';
+  var n = Number(id);
+  return isNaN(n) ? String(id) : n;
+}
+
 function getSessionHistory(sessionId) {
   if (!sessionId) return [];
   var arr = sessionStore.get(sessionId);
   return Array.isArray(arr) ? arr : [];
 }
 
-function addToSessionHistory(sessionId, normalizedTitle) {
-  if (!sessionId || !normalizedTitle) return;
+function addToSessionHistory(sessionId, tmdbId) {
+  if (!sessionId || (tmdbId != null && String(tmdbId).trim() === '')) return;
+  var id = normId(tmdbId);
+  if (id === '' || id === 'NaN') return;
   var arr = getSessionHistory(sessionId);
-  if (arr.indexOf(normalizedTitle) === -1) arr.push(normalizedTitle);
+  if (!arr.some(function (x) { return normId(x) === id; })) arr.push(tmdbId);
   if (arr.length > SESSION_HISTORY_MAX) arr.splice(0, arr.length - SESSION_HISTORY_MAX);
   sessionStore.set(sessionId, arr);
 }
 
-function isInHistory(sessionId, normalizedTitle) {
-  return getSessionHistory(sessionId).indexOf(normalizedTitle) !== -1;
+function isInHistory(sessionId, tmdbId) {
+  if (!sessionId || tmdbId == null) return false;
+  var id = normId(tmdbId);
+  if (id === '' || id === 'NaN') return false;
+  return getSessionHistory(sessionId).some(function (x) { return normId(x) === id; });
 }
 
 function containsCyrillic(str) {
@@ -342,8 +353,7 @@ module.exports = async (req, res) => {
     }
     sessionFilterKey.set(sessionId, currentFilterKey);
 
-    var history = getSessionHistory(sessionId);
-    var excludeList = (globalHistory || []).concat(history).slice(-EXCLUDE_MAX);
+    var excludeList = (globalHistory || []).slice(-EXCLUDE_MAX);
     var likedBlock = '';
     if (likedMovies.length > 0) {
       likedBlock = '\n\nUser liked these movies:\n• ' + likedMovies.slice(0, 30).join('\n• ') + '\n\nWhen generating recommendations, take these preferences slightly into account. Do not repeat the same movies.';
@@ -403,14 +413,13 @@ module.exports = async (req, res) => {
         var key = normalizeTitle(title);
         if (seenTitles[key]) continue;
         seenTitles[key] = true;
-        if (isInHistory(sessionId, key)) continue;
         if (globalNorm.indexOf(key) !== -1) continue;
         titlesToResolve.push(title);
       }
 
       console.group('🧹 AFTER TITLE FILTERING');
       console.log('Titles to resolve:', titlesToResolve);
-      console.log('Session history:', history);
+      console.log('Session history:', getSessionHistory(sessionId));
       console.log('Global history:', globalHistory);
       console.groupEnd();
 
@@ -429,8 +438,9 @@ module.exports = async (req, res) => {
           console.log('❌ SKIPPED (TMDB failed or filtered):', titlesToResolve[t]);
         }
         if (!resolved) continue;
-        if (seenIds[resolved.tmdb_id]) continue;
-        seenIds[resolved.tmdb_id] = true;
+        if (isInHistory(sessionId, resolved.tmdb_id)) continue;
+        if (seenIds[normId(resolved.tmdb_id)]) continue;
+        seenIds[normId(resolved.tmdb_id)] = true;
         recommendations.push(resolved);
       }
 
@@ -438,7 +448,7 @@ module.exports = async (req, res) => {
     }
 
     for (var r = 0; r < recommendations.length; r++) {
-      addToSessionHistory(sessionId, normalizeTitle(recommendations[r].title));
+      addToSessionHistory(sessionId, recommendations[r].tmdb_id);
     }
     console.group('🚀 FINAL RESPONSE');
     console.log('Resolved recommendations:', recommendations);
