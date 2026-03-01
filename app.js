@@ -1184,13 +1184,13 @@ function getRecommendationFromApi(options) {
     };
     callWithMinLoading(function () { return getRecommendationWithRetrySafe(opts, 1); }).then(function (result) {
       if (!result || result._error) {
-        renderServerErrorScreen('Интернет немножечко подзабил — рекомендации вернуть не смогли. Попробуй ещё разочек нажать.');
+        renderServerErrorScreen('Сейчас не удалось подобрать действительно хорошую рекомендацию. Показывать случайный фильм не хочется. Попробуйте ещё раз.');
         return;
       }
       movieQueue = result.recommendations || [];
       currentIndex = 0;
       if (!movieQueue.length) {
-        renderServerErrorScreen('Интернет немножечко подзабил — рекомендации вернуть не смогли. Попробуй ещё разочек нажать.');
+        renderServerErrorScreen('Сейчас не удалось подобрать действительно хорошую рекомендацию. Показывать случайный фильм не хочется. Попробуйте ещё раз.');
         return;
       }
       renderMovie(movieQueue[0]);
