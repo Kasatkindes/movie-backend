@@ -250,7 +250,7 @@ body {
   align-items: center;
   gap: 16px;
   width: 100%;
-  padding: 0 20px;
+  padding: 0;
   box-sizing: border-box;
 }
 
@@ -314,7 +314,7 @@ body {
   align-items: center;
   justify-content: center;
   width: 100%;
-  padding: 0 20px;
+  padding: 0;
   box-sizing: border-box;
 }
 
@@ -1034,7 +1034,7 @@ body {
   align-items: center;
   gap: 16px;
   width: 100%;
-  padding: 0 20px;
+  padding: 0;
   z-index: 10;
   pointer-events: none;
   box-sizing: border-box;
