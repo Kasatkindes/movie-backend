@@ -676,7 +676,10 @@ function getRecommendationFromApi(options) {
           '</div>' +
         '</div>' +
         '<div class="bottom-panel bottom-bar-container">' +
-          '<div class="bottom-panel__inner bottom-panel__inner--cta-only">' +
+          '<div class="bottom-actions">' +
+            '<button type="button" id="btn-info" class="btn-secondary-circle" aria-label="О приложении">' +
+              '<img src="assets/icons/info.svg" alt="" width="24" height="24">' +
+            '</button>' +
             '<button type="button" id="btn-find-movie" class="btn-primary">' +
               '<img class="btn-icon" src="assets/icons/play.svg" alt="" width="24" height="24">' +
               '<span>Подобрать фильм</span>' +
@@ -729,6 +732,7 @@ function getRecommendationFromApi(options) {
         if (popularityChip) { onPopularityClick(e); return; }
       });
     }
+    app.querySelector('#btn-info').addEventListener('click', renderInfoScreen);
     app.querySelector('#btn-find-movie').addEventListener('click', onFindMovieClick);
 
     if (state.savedMoodScrollLeft != null) {
@@ -750,6 +754,29 @@ function getRecommendationFromApi(options) {
         }
       });
     }
+  }
+
+  function renderInfoScreen() {
+    app.innerHTML =
+      '<section class="screen screen-info">' +
+        '<div class="info-content">' +
+          '<h1 class="info-title">Привет, дружок.</h1>' +
+          '<p class="info-p">Мне надоело тратить на выбор фильма больше времени, чем на сам просмотр. ' +
+          'Поэтому я собрал этот сервис и делюсь им с тобой.</p>' +
+          '<p class="info-p">Сейчас это MVP-версия. Я смотрю, как всё работает, поэтому иногда возможны ошибки.</p>' +
+          '<p class="info-p">Если что-то сломалось или хочешь предложить идею —<br>напиши мне в Telegram: <a href="https://t.me/Kasatkin_Oleg" class="info-link" target="_blank" rel="noopener noreferrer">@Kasatkin_Oleg</a></p>' +
+          '<p class="info-p">Буду рад любому фидбэку.</p>' +
+          '<p class="info-p">Если захочешь поддержать проект — буду рад донейшену. Можно отправить через Bybit по UID: 115595350</p>' +
+        '</div>' +
+        '<div class="bottom-panel bottom-bar-container">' +
+          '<div class="bottom-actions">' +
+            '<button type="button" id="btn-info-back" class="btn-primary">' +
+              '<span>Назад к выбору фильма</span>' +
+            '</button>' +
+          '</div>' +
+        '</div>' +
+      '</section>';
+    app.querySelector('#btn-info-back').addEventListener('click', renderMoodScreen);
   }
 
   function renderLoadingScreen() {

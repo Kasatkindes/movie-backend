@@ -245,6 +245,85 @@ body {
   gap: 0;
 }
 
+.screen-mood .bottom-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 0 20px;
+  box-sizing: border-box;
+}
+
+.screen-mood .bottom-actions .btn-secondary-circle {
+  flex: 0 0 56px;
+  width: 56px;
+  height: 56px;
+}
+
+.screen-mood .bottom-actions .btn-primary {
+  flex: 1;
+  min-width: 0;
+  height: 56px;
+}
+
+/* ========== Info screen (О приложении) ========== */
+.screen-info {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.screen-info .info-content {
+  flex: 1;
+  padding: 32px 16px 120px;
+  overflow-y: auto;
+}
+
+.screen-info .info-title {
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.2;
+  margin: 0 0 24px;
+  color: var(--chip-text);
+}
+
+.screen-info .info-p {
+  font-size: 18px;
+  line-height: 1.5;
+  margin: 0 0 20px;
+  color: var(--chip-text);
+}
+
+.screen-info .info-p:last-child {
+  margin-bottom: 0;
+}
+
+.screen-info .info-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.screen-info .info-link:hover {
+  text-decoration: underline;
+  opacity: 0.8;
+}
+
+.screen-info .bottom-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0 20px;
+  box-sizing: border-box;
+}
+
+.screen-info .bottom-actions .btn-primary {
+  flex: 1;
+  min-width: 0;
+  height: 56px;
+}
+
 /* ========== Loading screen ========== */
 .screen-loading {
   position: relative;
@@ -383,6 +462,13 @@ body {
   margin: 0 0 12px;
   color: var(--chip-text);
 }
+
+/* Main heading on mood screen */
+.screen-mood .screen-content > .section-label:first-of-type {
+  font-size: 24px;
+}
+
+/* Filter section labels (Эпоха, Рейтинг, Популярность) stay 16px via .section-label */
 
 /* ========== Mood chips: two rows, horizontal scroll ========== */
 .chips-mood-scroll {

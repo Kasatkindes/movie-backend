@@ -69,12 +69,11 @@ MOOD: laugh
 
 GOAL:
 The user wants fast, effortless laughter and emotional lightness.
-
 JOB TO BE DONE:
 When mentally overloaded or simply wanting a mood boost, the user needs a film that generates easy humor without emotional heaviness.
 
 SELECTION RULES:
-- Comedy must dominate.
+- Comedy must dominate. 
 - Humor must work without deep dramatic immersion.
 - Light tone.
 
