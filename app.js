@@ -575,6 +575,8 @@ function getRecommendationFromApi(options) {
 
   var loadingPhraseIntervalId = null;
   var generateCounter = 0;
+  var generationStartTime = null;
+  var sessionStartEventFired = false;
 
   var LOADING_PHRASES = [
     'Просматриваем каталог…',
@@ -733,6 +735,20 @@ function getRecommendationFromApi(options) {
       var scrollEl = app.querySelector('.chips-mood-scroll');
       if (scrollEl) scrollEl.scrollLeft = state.savedMoodScrollLeft;
       state.savedMoodScrollLeft = null;
+    }
+
+    if (!sessionStartEventFired && window.plausible) {
+      sessionStartEventFired = true;
+      var firstVisit = !localStorage.getItem('has_visited');
+      if (firstVisit) {
+        try { localStorage.setItem('has_visited', '1'); } catch (e) {}
+      }
+      plausible('session_started', {
+        props: {
+          first_visit: firstVisit,
+          device: window.innerWidth <= 768 ? 'mobile' : 'desktop'
+        }
+      });
     }
   }
 
@@ -961,7 +977,9 @@ function getRecommendationFromApi(options) {
       plausible('change_movie_click', {
         props: {
           mood: state.selectedMood || 'none',
-          epoch: state.selectedEpoch || 'none'
+          epoch: state.selectedEpoch || 'none',
+          generate_index: generateCounter,
+          movies_seen_total: generateCounter
         }
       });
     }
@@ -987,6 +1005,8 @@ function getRecommendationFromApi(options) {
   function renderMovieCardFinal(finalData) {
     var rec = finalData.rec || null;
     var displayTitle = String(finalData.title || (rec && rec.original_title) || '').trim();
+
+    var loadTime = generationStartTime ? Date.now() - generationStartTime : null;
 
     var baseDesc = (rec && rec.description && String(rec.description).trim()) ? String(rec.description).trim() : '';
     var desc = (finalData.description && String(finalData.description).trim())
@@ -1054,14 +1074,26 @@ function getRecommendationFromApi(options) {
     updateFavoriteButtonState(btnFavorite, favoriteKey);
     if (btnFavorite) {
       btnFavorite.addEventListener('click', function () {
+        if (window.plausible) {
+          plausible('favorite_click', {
+            props: {
+              title: displayTitle || 'unknown',
+              mood: state.selectedMood || 'none',
+              generate_index: generateCounter
+            }
+          });
+        }
         showFavoriteToast();
       });
     }
     if (window.plausible) {
-      plausible('movie_loaded', {
+      plausible('recommendation_loaded', {
         props: {
           title: displayTitle || 'unknown',
-          rating: ratingVal || 'unknown'
+          rating: ratingVal || 'unknown',
+          mood: state.selectedMood || 'none',
+          generate_index: generateCounter,
+          load_time_ms: loadTime
         }
       });
     }
@@ -1121,6 +1153,15 @@ function getRecommendationFromApi(options) {
     updateFavoriteButtonState(btnFavorite, displayTitle);
     if (btnFavorite) {
       btnFavorite.addEventListener('click', function () {
+        if (window.plausible) {
+          plausible('favorite_click', {
+            props: {
+              title: displayTitle || 'unknown',
+              mood: state.selectedMood || 'none',
+              generate_index: generateCounter
+            }
+          });
+        }
         showFavoriteToast();
       });
     }
@@ -1132,6 +1173,16 @@ function getRecommendationFromApi(options) {
     var scrollContainer = app.querySelector('.chips-mood-scroll');
     if (scrollContainer) state.savedMoodScrollLeft = scrollContainer.scrollLeft;
     state.selectedMood = chip.dataset.mood;
+    if (window.plausible) {
+      plausible('mood_selected', {
+        props: {
+          mood: state.selectedMood || 'none',
+          epoch: state.selectedEpoch || 'none',
+          rating: state.selectedRating || 'none',
+          popularity: state.selectedPopularity || 'none'
+        }
+      });
+    }
     renderMoodScreen();
   }
 
@@ -1184,12 +1235,31 @@ function getRecommendationFromApi(options) {
     };
     callWithMinLoading(function () { return getRecommendationWithRetrySafe(opts, 1); }).then(function (result) {
       if (!result || result._error) {
+        if (window.plausible) {
+          plausible('api_error', {
+            props: {
+              status: (result && result.status != null) ? result.status : 0,
+              mood: state.selectedMood || 'none',
+              generate_index: generateCounter
+            }
+          });
+        }
         renderServerErrorScreen('Сейчас не удалось подобрать действительно хорошую рекомендацию. Показывать случайный фильм не хочется. Попробуйте ещё раз.');
         return;
       }
       movieQueue = result.recommendations || [];
       currentIndex = 0;
       if (!movieQueue.length) {
+        if (window.plausible) {
+          plausible('no_results', {
+            props: {
+              mood: state.selectedMood || 'none',
+              epoch: state.selectedEpoch || 'none',
+              rating: state.selectedRating || 'none',
+              popularity: state.selectedPopularity || 'none'
+            }
+          });
+        }
         renderServerErrorScreen('Сейчас не удалось подобрать действительно хорошую рекомендацию. Показывать случайный фильм не хочется. Попробуйте ещё раз.');
         return;
       }
@@ -1209,10 +1279,12 @@ function getRecommendationFromApi(options) {
           mood: state.selectedMood || 'none',
           epoch: state.selectedEpoch || 'none',
           rating: state.selectedRating || 'none',
-          popularity: state.selectedPopularity || 'none'
+          popularity: state.selectedPopularity || 'none',
+          generate_index: generateCounter
         }
       });
     }
+    generationStartTime = Date.now();
     doFetchRecommendations();
   }
 
