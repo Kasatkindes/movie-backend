@@ -32,6 +32,15 @@ app.get('/api/image', function (req, res) {
   });
 });
 
+app.get('/debug-env', (req, res) => {
+  res.json({
+    groqExists: !!process.env.GROQ_API_KEY,
+    groqLength: process.env.GROQ_API_KEY ? process.env.GROQ_API_KEY.length : 0,
+    tmdbExists: !!process.env.TMDB_API_KEY,
+    tmdbLength: process.env.TMDB_API_KEY ? process.env.TMDB_API_KEY.length : 0
+  });
+});
+
 app.use(express.static(path.join(__dirname)));
 
 app.get('*', function (req, res) {
