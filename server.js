@@ -5,6 +5,9 @@ const express = require('express');
 const recommendHandler = require('./api/recommend');
 const imageHandler = require('./api/image');
 
+console.log('Node version:', process.version);
+console.log('Fetch exists:', typeof fetch);
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
