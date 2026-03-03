@@ -300,9 +300,9 @@ async function resolveMovieViaTmdb(title, apiKey, year) {
       console.group('🔎 TMDB SEARCH');
       console.log('Search title:', title);
       console.log('Search year:', year);
-      console.log('Search URL:', searchUrl);
       console.groupEnd();
       var searchRes = await fetch(searchUrl);
+      console.log('DEBUG: TMDB search status:', searchRes.status);
       if (!searchRes.ok) return null;
       var searchData = await searchRes.json();
       console.log('DEBUG: TMDB results count:', searchData.results ? searchData.results.length : 0);
