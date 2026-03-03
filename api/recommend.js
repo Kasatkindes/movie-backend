@@ -435,14 +435,28 @@ module.exports = async (req, res) => {
         max_tokens: 2000
       }).then(function (completion) {
         var content = completion && completion.choices && completion.choices[0] && completion.choices[0].message && completion.choices[0].message.content;
-        if (typeof content !== 'string' || !content.trim()) return null;
-        console.log('DEBUG: Groq raw response:', content);
+        console.log('DEBUG: GROQ RAW CONTENT:');
+        console.log(content);
+        if (!content || typeof content !== 'string') {
+          console.error('DEBUG: GROQ returned empty or non-string content:', content);
+          return null;
+        }
+        if (!content.trim()) return null;
         try {
-          return JSON.parse(content);
+          var parsedObject = JSON.parse(content);
+          console.log('DEBUG: GROQ PARSED JSON:');
+          console.log(parsedObject);
+          return parsedObject;
         } catch (_) {
           return null;
         }
-      }).catch(function () {
+      }).catch(function (err) {
+        console.error('DEBUG: GROQ REQUEST FAILED:');
+        console.error(err);
+        if (err && err.response) {
+          console.error('DEBUG: GROQ RESPONSE STATUS:', err.response.status);
+          console.error('DEBUG: GROQ RESPONSE DATA:', err.response.data);
+        }
         return null;
       });
 
