@@ -611,8 +611,10 @@ function getRecommendationFromApi(options) {
   function toProxyUrl(url) {
     if (!url || typeof url !== 'string') return url;
     var s = url.trim();
-    if (s.indexOf('https://image.tmdb.org') === 0) {
-      return '/api/image?path=' + encodeURIComponent(s.slice(24));
+    var prefix = 'https://image.tmdb.org';
+    if (s.indexOf(prefix) === 0) {
+      var path = s.replace(prefix, '');
+      return '/api/image?path=' + encodeURIComponent(path);
     }
     return url;
   }
