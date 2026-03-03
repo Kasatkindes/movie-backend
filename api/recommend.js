@@ -290,6 +290,7 @@ async function resolveMovieViaTmdb(title, apiKey, year) {
     var searchRes = await fetch(searchUrl);
     if (!searchRes.ok) return null;
     var searchData = await searchRes.json();
+    console.log('DEBUG: TMDB results count:', searchData.results ? searchData.results.length : 0);
     console.group('📦 TMDB SEARCH RESULTS');
     console.log('Results count:', searchData.results ? searchData.results.length : 0);
     console.log('Results:', searchData.results);
@@ -422,6 +423,7 @@ module.exports = async (req, res) => {
     var recommendations = [];
 
     for (var attempt = 0; attempt < 2; attempt++) {
+      console.log('DEBUG: Calling Groq with payload:', { mood, epoch, rating, popularity });
       var raw = await client.chat.completions.create({
         model: MODEL,
         messages: [
@@ -434,6 +436,7 @@ module.exports = async (req, res) => {
       }).then(function (completion) {
         var content = completion && completion.choices && completion.choices[0] && completion.choices[0].message && completion.choices[0].message.content;
         if (typeof content !== 'string' || !content.trim()) return null;
+        console.log('DEBUG: Groq raw response:', content);
         try {
           return JSON.parse(content);
         } catch (_) {
@@ -446,6 +449,7 @@ module.exports = async (req, res) => {
       if (!raw) break;
 
       var list = (raw && raw.movies && Array.isArray(raw.movies)) ? raw.movies : [];
+      console.log('DEBUG: Parsed movie list:', list);
       console.group('🎬 LLM RAW OUTPUT');
       console.log('Raw LLM JSON:', raw);
       console.log('Raw movies array:', list);
@@ -480,6 +484,7 @@ module.exports = async (req, res) => {
           return xt && normalizeTitle(xt) === normalizeTitle(titlesToResolve[t]);
         });
         var year = llmItem && llmItem.year != null ? llmItem.year : null;
+        console.log('DEBUG: Searching TMDB for:', titlesToResolve[t]);
         var resolved = await resolveMovieViaTmdb(titlesToResolve[t], tmdbApiKey, year);
         if (resolved) {
           console.log('✅ RESOLVED MOVIE:', resolved);
@@ -493,6 +498,7 @@ module.exports = async (req, res) => {
         recommendations.push(resolved);
       }
 
+      console.log('DEBUG: After filtering count:', recommendations.length);
       if (recommendations.length > 0) break;
     }
 
@@ -500,6 +506,7 @@ module.exports = async (req, res) => {
       addToSessionHistory(sessionId, recommendations[r].tmdb_id);
     }
     console.group('🚀 FINAL RESPONSE');
+    console.log('DEBUG: FINAL recommendations:', recommendations);
     console.log('Resolved recommendations:', recommendations);
     console.log('Count returned to frontend:', recommendations.length);
     console.groupEnd();
