@@ -1,5 +1,6 @@
 'use strict';
 
+const path = require('path');
 const express = require('express');
 const recommendHandler = require('./api/recommend');
 const imageHandler = require('./api/image');
@@ -29,6 +30,12 @@ app.get('/api/image', function (req, res) {
       res.status(500).json({ error: 'Internal server error' });
     }
   });
+});
+
+app.use(express.static(path.join(__dirname)));
+
+app.get('*', function (req, res) {
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.listen(PORT, function () {
