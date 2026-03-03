@@ -244,6 +244,14 @@ CRITICAL TITLE CONTRACT (MANDATORY):
 5. Returning an uncertain or made-up title is strictly forbidden.
 6. original_title must match the canonical IMDb/TMDB English title exactly.
 
+TITLE LANGUAGE (STRICT):
+- Movie titles MUST be returned strictly in their original English title.
+- Never translate titles into Russian.
+- Never localize titles.
+- Do not return localized versions.
+- If the film is non-English, return its official international English title.
+- Always include release year in the JSON as a separate field if available.
+
 ---
 
 RESPONSE FORMAT (STRICT):
@@ -278,82 +286,102 @@ function setCors(res) {
 async function resolveMovieViaTmdb(title, apiKey, year) {
   if (!title || !String(title).trim() || !apiKey) return null;
   var query = encodeURIComponent(String(title).trim());
-  var searchUrl = 'https://api.themoviedb.org/3/search/movie?api_key=' + apiKey + '&query=' + query;
-  if (year) searchUrl += '&year=' + year;
-  console.group('🔎 TMDB SEARCH');
-  console.log('Search title:', title);
-  console.log('Search year:', year);
-  console.log('Search URL:', searchUrl);
-  console.groupEnd();
+  var triedFallback = false;
   try {
-    var searchRes = await fetch(searchUrl);
-    if (!searchRes.ok) return null;
-    var searchData = await searchRes.json();
-    console.log('DEBUG: TMDB results count:', searchData.results ? searchData.results.length : 0);
-    console.group('📦 TMDB SEARCH RESULTS');
-    console.log('Results count:', searchData.results ? searchData.results.length : 0);
-    console.log('Results:', searchData.results);
-    console.groupEnd();
-    if (!searchData.results || !searchData.results.length) return null;
-    var exactMatch = searchData.results.find(function (r) {
-      return normalizeTitle(r.original_title) === normalizeTitle(title);
-    });
-    var first = exactMatch || searchData.results[0];
-    console.log('Chosen candidate:', first);
-    var tmdbId = first.id;
-    if (tmdbId == null) return null;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      var searchUrl;
+      if (triedFallback) {
+        console.log('TMDB FALLBACK (en-US) triggered for:', title);
+        searchUrl = 'https://api.themoviedb.org/3/search/movie?api_key=' + apiKey + '&query=' + query + '&language=en-US&include_adult=false';
+      } else {
+        searchUrl = 'https://api.themoviedb.org/3/search/movie?api_key=' + apiKey + '&query=' + query;
+        if (year) searchUrl += '&year=' + year;
+      }
+      console.group('🔎 TMDB SEARCH');
+      console.log('Search title:', title);
+      console.log('Search year:', year);
+      console.log('Search URL:', searchUrl);
+      console.groupEnd();
+      var searchRes = await fetch(searchUrl);
+      if (!searchRes.ok) return null;
+      var searchData = await searchRes.json();
+      console.log('DEBUG: TMDB results count:', searchData.results ? searchData.results.length : 0);
+      console.group('📦 TMDB SEARCH RESULTS');
+      console.log('Results count:', searchData.results ? searchData.results.length : 0);
+      console.log('Results:', searchData.results);
+      console.groupEnd();
+      if (!searchData.results || !searchData.results.length) {
+        if (triedFallback) return null;
+        triedFallback = true;
+        continue;
+      }
+      var exactMatch = searchData.results.find(function (r) {
+        return normalizeTitle(r.original_title) === normalizeTitle(title);
+      });
+      var first = exactMatch || searchData.results[0];
+      console.log('Chosen candidate:', first);
+      var tmdbId = first.id;
+      if (tmdbId == null) {
+        if (triedFallback) return null;
+        triedFallback = true;
+        continue;
+      }
 
-    var movieUrl = 'https://api.themoviedb.org/3/movie/' + tmdbId + '?api_key=' + apiKey + '&language=ru-RU';
-    var movieRes = await fetch(movieUrl);
-    if (!movieRes.ok) return null;
-    var movieData = await movieRes.json();
-    if (!movieData || !movieData.title || !movieData.poster_path) {
-      return null;
+      var movieUrl = 'https://api.themoviedb.org/3/movie/' + tmdbId + '?api_key=' + apiKey + '&language=ru-RU';
+      var movieRes = await fetch(movieUrl);
+      if (!movieRes.ok) return null;
+      var movieData = await movieRes.json();
+      if (!movieData || !movieData.title || !movieData.poster_path) {
+        if (triedFallback) return null;
+        triedFallback = true;
+        continue;
+      }
+
+      var posterPath = movieData.poster_path;
+      var backdropPath = movieData.backdrop_path;
+      var overview = movieData.overview && String(movieData.overview).trim() ? String(movieData.overview).trim() : '';
+
+      var backdropUrl = movieData.backdrop_path
+        ? TMDB_IMAGE_BASE + '/t/p/w1280' + movieData.backdrop_path
+        : null;
+      var posterUrl = movieData.poster_path
+        ? TMDB_IMAGE_BASE + '/t/p/w780' + movieData.poster_path
+        : null;
+
+      var yearOut = movieData.release_date
+        ? parseInt(String(movieData.release_date).split('-')[0], 10)
+        : null;
+      if (yearOut != null && isNaN(yearOut)) yearOut = null;
+
+      var rating = movieData.vote_average
+        ? String(Math.round(movieData.vote_average * 10) / 10)
+        : null;
+
+      var country = movieData.production_countries && movieData.production_countries.length
+        ? movieData.production_countries.map(function (c) { return c.name; }).join(', ')
+        : null;
+
+      var genres = movieData.genres && movieData.genres.length
+        ? movieData.genres.map(function (g) { return g.name; }).join(', ')
+        : null;
+
+      var ageLimit = movieData.adult === true ? '18+' : '12+';
+
+      return {
+        tmdb_id: tmdbId,
+        title: movieData.title || movieData.original_title || title,
+        original_title: movieData.original_title || movieData.title || title,
+        overview: overview,
+        backdrop_url: backdropUrl,
+        poster_url: posterUrl,
+        year: yearOut,
+        rating: rating,
+        country: country,
+        genres: genres,
+        ageLimit: ageLimit
+      };
     }
-
-    var posterPath = movieData.poster_path;
-    var backdropPath = movieData.backdrop_path;
-    var overview = movieData.overview && String(movieData.overview).trim() ? String(movieData.overview).trim() : '';
-
-    var backdropUrl = movieData.backdrop_path
-      ? TMDB_IMAGE_BASE + '/t/p/w1280' + movieData.backdrop_path
-      : null;
-    var posterUrl = movieData.poster_path
-      ? TMDB_IMAGE_BASE + '/t/p/w780' + movieData.poster_path
-      : null;
-
-    var year = movieData.release_date
-      ? parseInt(String(movieData.release_date).split('-')[0], 10)
-      : null;
-    if (year != null && isNaN(year)) year = null;
-
-    var rating = movieData.vote_average
-      ? String(Math.round(movieData.vote_average * 10) / 10)
-      : null;
-
-    var country = movieData.production_countries && movieData.production_countries.length
-      ? movieData.production_countries.map(function (c) { return c.name; }).join(', ')
-      : null;
-
-    var genres = movieData.genres && movieData.genres.length
-      ? movieData.genres.map(function (g) { return g.name; }).join(', ')
-      : null;
-
-    var ageLimit = movieData.adult === true ? '18+' : '12+';
-
-    return {
-      tmdb_id: tmdbId,
-      title: movieData.title || movieData.original_title || title,
-      original_title: movieData.original_title || movieData.title || title,
-      overview: overview,
-      backdrop_url: backdropUrl,
-      poster_url: posterUrl,
-      year: year,
-      rating: rating,
-      country: country,
-      genres: genres,
-      ageLimit: ageLimit
-    };
+    return null;
   } catch (e) {
     return null;
   }
