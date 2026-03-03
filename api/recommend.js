@@ -315,8 +315,11 @@ async function resolveMovieViaTmdb(title, apiKey, year) {
         triedFallback = true;
         continue;
       }
+      var norm = normalizeTitle(title);
       var exactMatch = searchData.results.find(function (r) {
-        return normalizeTitle(r.original_title) === normalizeTitle(title);
+        var rTitle = (r.title != null && String(r.title).trim()) ? normalizeTitle(r.title) : '';
+        var rOriginal = (r.original_title != null && String(r.original_title).trim()) ? normalizeTitle(r.original_title) : '';
+        return rTitle === norm || rOriginal === norm;
       });
       var first = exactMatch || searchData.results[0];
       console.log('Chosen candidate:', first);
