@@ -610,12 +610,15 @@ function getRecommendationFromApi(options) {
   /** Rewrite TMDB image URL to internal proxy so images work in all regions. */
   function toProxyUrl(url) {
     if (!url || typeof url !== 'string') return url;
+
     var s = url.trim();
     var prefix = 'https://image.tmdb.org';
+
     if (s.indexOf(prefix) === 0) {
       var path = s.replace(prefix, '');
-      return '/api/image?path=' + encodeURIComponent(path);
+      return 'https://images.weserv.nl/?url=image.tmdb.org' + path;
     }
+
     return url;
   }
 
