@@ -303,14 +303,22 @@ async function resolveMovieViaTmdb(title, apiKey, year) {
       console.groupEnd();
       var searchRes = await fetch(searchUrl);
       console.log('DEBUG: TMDB search status:', searchRes.status);
-      if (!searchRes.ok) return null;
+      if (!searchRes.ok) {
+        var errBody = await searchRes.text();
+        console.log('DEBUG: TMDB search FAILED — status:', searchRes.status, 'body (first 400 chars):', (errBody || '').slice(0, 400));
+        return null;
+      }
       var searchData = await searchRes.json();
       console.log('DEBUG: TMDB results count:', searchData.results ? searchData.results.length : 0);
+      if (searchData.status_code) {
+        console.log('DEBUG: TMDB API error in response — status_code:', searchData.status_code, 'status_message:', searchData.status_message || '');
+      }
       console.group('📦 TMDB SEARCH RESULTS');
       console.log('Results count:', searchData.results ? searchData.results.length : 0);
       console.log('Results:', searchData.results);
       console.groupEnd();
       if (!searchData.results || !searchData.results.length) {
+        console.log('DEBUG: TMDB search returned ZERO results for:', title);
         if (triedFallback) return null;
         triedFallback = true;
         continue;
@@ -332,9 +340,14 @@ async function resolveMovieViaTmdb(title, apiKey, year) {
 
       var movieUrl = 'https://api.themoviedb.org/3/movie/' + tmdbId + '?api_key=' + apiKey + '&language=ru-RU';
       var movieRes = await fetch(movieUrl);
-      if (!movieRes.ok) return null;
+      if (!movieRes.ok) {
+        var movieErrBody = await movieRes.text();
+        console.log('DEBUG: TMDB movie details FAILED — tmdbId:', tmdbId, 'status:', movieRes.status, 'body (first 300 chars):', (movieErrBody || '').slice(0, 300));
+        return null;
+      }
       var movieData = await movieRes.json();
       if (!movieData || !movieData.title || !movieData.poster_path) {
+        console.log('DEBUG: TMDB movie details rejected — tmdbId:', tmdbId, 'hasTitle:', !!(movieData && movieData.title), 'hasPosterPath:', !!(movieData && movieData.poster_path));
         if (triedFallback) return null;
         triedFallback = true;
         continue;
