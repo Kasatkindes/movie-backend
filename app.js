@@ -607,6 +607,16 @@ function getRecommendationFromApi(options) {
     return div.innerHTML;
   }
 
+  /** Rewrite TMDB image URL to internal proxy so images work in all regions. */
+  function toProxyUrl(url) {
+    if (!url || typeof url !== 'string') return url;
+    var s = url.trim();
+    if (s.indexOf('https://image.tmdb.org') === 0) {
+      return '/api/image?path=' + encodeURIComponent(s.slice(24));
+    }
+    return url;
+  }
+
   function formatMovieMeta(movie) {
     var countries = movie.countries.join(', ');
     var genres = movie.genres.join(', ');
@@ -1043,7 +1053,7 @@ function getRecommendationFromApi(options) {
     var posterUrlRaw = finalData.posterUrl || null;
     var hasRealImage = posterUrlRaw && String(posterUrlRaw).trim();
     var posterHtml = hasRealImage
-      ? '<img src="' + escapeHtml(posterUrlRaw) + '" alt="" class="result-backdrop__img loaded">'
+      ? '<img src="' + escapeHtml(toProxyUrl(posterUrlRaw)) + '" alt="" class="result-backdrop__img loaded">'
       : '<div class="result-backdrop__placeholder">🎬</div>';
 
     var metaParts = [];
@@ -1134,7 +1144,7 @@ function getRecommendationFromApi(options) {
     var poster = movie && movie.poster;
     var displayTitle = (movie && (movie.original_title || movie.originalTitle || movie.title)) ? String(movie.original_title || movie.originalTitle || movie.title) : '';
     var posterHtml = (poster && poster.type === 'image' && poster.src)
-      ? '<img src="' + escapeHtml(poster.src) + '" alt="">'
+      ? '<img src="' + escapeHtml(toProxyUrl(poster.src)) + '" alt="">'
       : escapeHtml(displayTitle);
     var countriesStr = movie.countries && movie.countries.length ? movie.countries.join(', ') : '';
     var genresStr = movie.genres && movie.genres.length ? movie.genres.join(', ') : '';
