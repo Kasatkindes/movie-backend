@@ -1,7 +1,6 @@
 'use strict';
 
-const Groq = require('groq-sdk');
-
+const GROQ_PROXY_URL = 'https://groq-proxy.sole-speci.workers.dev';
 const MODEL = 'llama-3.1-8b-instant';
 const EXCLUDE_MAX = 10;
 const SESSION_HISTORY_MAX = 100;
@@ -419,46 +418,61 @@ module.exports = async (req, res) => {
       return `Подбери 5 разных фильмов. Настроение: ${mood || 'любое'}. Эпоха: ${epoch || 'любая'}. Рейтинг: ${rating || 'любой'}. Популярность: ${popularity || 'любая'}.${excludePart}${likedBlock} Ответь только JSON в указанном формате (массив movies из 5 элементов).`;
     }
 
-    const client = new Groq({ apiKey });
     var recommendations = [];
 
     for (var attempt = 0; attempt < 2; attempt++) {
       console.log('DEBUG: Calling Groq with payload:', { mood, epoch, rating, popularity });
-      var raw = await client.chat.completions.create({
-        model: MODEL,
-        messages: [
+      var raw = null;
+      try {
+        var messages = [
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: buildUserMessage(excludeList) }
-        ],
-        response_format: { type: 'json_object' },
-        temperature: 0.6,
-        max_tokens: 2000
-      }).then(function (completion) {
-        var content = completion && completion.choices && completion.choices[0] && completion.choices[0].message && completion.choices[0].message.content;
-        console.log('DEBUG: GROQ RAW CONTENT:');
-        console.log(content);
-        if (!content || typeof content !== 'string') {
-          console.error('DEBUG: GROQ returned empty or non-string content:', content);
-          return null;
+        ];
+        var response = await fetch(GROQ_PROXY_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: MODEL,
+            messages: messages,
+            response_format: { type: 'json_object' },
+            temperature: 0.6,
+            max_tokens: 2000
+          })
+        });
+        if (!response.ok) {
+          console.error('DEBUG: Worker returned non-OK status', response.status);
+          console.error(await response.text());
+        } else {
+          var data = await response.json();
+          if (!data || !data.choices || !data.choices[0] || !data.choices[0].message) {
+            console.error('DEBUG: Invalid Groq response structure', data);
+          } else {
+            var content = data.choices[0].message.content;
+            console.log('DEBUG: GROQ RAW CONTENT:');
+            console.log(content);
+            if (!content || typeof content !== 'string') {
+              console.error('DEBUG: GROQ returned empty or non-string content:', content);
+            } else if (!content.trim()) {
+              // empty string
+            } else {
+              try {
+                raw = JSON.parse(content);
+                console.log('DEBUG: GROQ PARSED JSON:');
+                console.log(raw);
+              } catch (parseErr) {
+                console.error('DEBUG: GROQ JSON PARSE ERROR', parseErr);
+              }
+            }
+          }
         }
-        if (!content.trim()) return null;
-        try {
-          var parsedObject = JSON.parse(content);
-          console.log('DEBUG: GROQ PARSED JSON:');
-          console.log(parsedObject);
-          return parsedObject;
-        } catch (_) {
-          return null;
-        }
-      }).catch(function (err) {
+      } catch (err) {
         console.error('DEBUG: GROQ REQUEST FAILED:');
         console.error(err);
         if (err && err.response) {
           console.error('DEBUG: GROQ RESPONSE STATUS:', err.response.status);
           console.error('DEBUG: GROQ RESPONSE DATA:', err.response.data);
         }
-        return null;
-      });
+      }
 
       if (!raw) break;
 
