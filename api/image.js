@@ -18,7 +18,13 @@ module.exports = async (req, res) => {
 
   let response;
   try {
-    response = await fetch(url);
+    response = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0",
+        "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        "Referer": "https://www.themoviedb.org/"
+      }
+    });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch image from TMDB' });
     return;
