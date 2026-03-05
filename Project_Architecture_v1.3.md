@@ -55,6 +55,7 @@ Fornex VPS
 
 Domain:
 kinomi.ru
+dev.kinomi.ru
 
 DNS:
 Managed via Gina.ru
@@ -63,6 +64,24 @@ DNS flow:
 
 User → DNS (Gina) → VPS IP → Nginx → Node server
 
+The system has two environments:
+Production
+Development
+
+Production
+Domain: kinomi.ru
+Backend port: 3000
+Directory: /root/movie-backend-prod
+Branch: main
+PM2 process: movie-api
+
+Development:
+Domain: dev.kinomi.ru
+Backend port: 3001
+Directory: /root/movie-backend-dev
+Branch: develop
+PM2 process: movie-api-dev
+
 ------------------------------------------------------------
 
 ## 4. NGINX ARCHITECTURE
@@ -70,19 +89,45 @@ User → DNS (Gina) → VPS IP → Nginx → Node server
 Nginx acts as reverse proxy.
 
 Flow:
-Client → Nginx (port 80/443) → localhost:3000 → Node server
+Client → Nginx → Node server
 
 Example:
 server {
-    server_name kinomi.ru;
+
+    server_name kinomi.ru www.kinomi.ru;
 
     location / {
         proxy_pass http://localhost:3000;
     }
+
+}
+
+server {
+
+    server_name dev.kinomi.ru;
+
+    location / {
+        proxy_pass http://localhost:3001;
+    }
+
 }
 
 SSL:
 LetsEncrypt (certbot)
+
+Certificates:
+kinomi.ru
+dev.kinomi.ru
+
+Stored in:
+/etc/letsencrypt/live/
+
+Production routing:
+kinomi.ru → localhost:3000
+
+Development routing:
+dev.kinomi.ru → localhost:3001
+
 
 ------------------------------------------------------------
 
@@ -90,11 +135,19 @@ LetsEncrypt (certbot)
 
 Node server runs via PM2.
 
-Process:
-movie-api
+Production process:
+name: movie-api
+directory: /root/movie-backend-prod
+port: 3000
 
-Start:
 pm2 start server.js --name movie-api
+
+Development process:
+name: movie-api-dev
+directory: /root/movie-backend-dev
+port: 3001
+
+pm2 start server.js --name movie-api-dev
 
 Logs:
 pm2 logs movie-api
@@ -319,11 +372,32 @@ entry.53559483 → text
 ## 21. DEPLOYMENT
 
 GitHub repository.
+https://github.com/Kasatkindes/movie-backend
 
 Branches:
-
 main → production
 develop → development
+Server directories:
+/root/movie-backend-prod
+/root/movie-backend-dev
+
+Deployment scripts exist on the server:
+/root/deploy-prod.sh
+/root/deploy-dev.sh
+
+Development deploy:
+/root/deploy-prod.sh
+/root/deploy-dev.sh
+
+Script actions:
+cd /root/movie-backend-dev
+git pull origin develop
+pm2 restart movie-api-dev --update-env
+
+Production deploy:
+git push origin main
+ssh root@server
+deploy-prod
 
 Deployment:
 
@@ -336,13 +410,10 @@ main branch deployed to production server.
 Useful commands:
 
 Check backend:
-
 curl http://localhost:3000/health
 
 Check logs:
-
 pm2 logs movie-api
-
 Check environment:
 /debug-env
 –––––––––––––––––––––––––

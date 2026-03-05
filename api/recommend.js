@@ -3,6 +3,7 @@
 const GROQ_PROXY_URL = 'https://groq-proxy.sole-speci.workers.dev';
 const MODEL = 'llama-3.1-8b-instant';
 const SESSION_HISTORY_MAX = 100;
+const EXCLUDE_TITLES_MAX = 50;
 const BATCH_SIZE = 5;
 
 /** Per-session queue of resolved movie objects. Backend returns one movie per request from this queue. */
@@ -534,6 +535,11 @@ module.exports = async (req, res) => {
         if (title) titlesFromLlm.push(title);
       }
       titlesFromLlm.forEach(function (t) { excludeSet.add(normalizeTitle(t)); });
+      var arrExclude = Array.from(excludeSet);
+      if (arrExclude.length > EXCLUDE_TITLES_MAX) {
+        var trimmed = arrExclude.slice(arrExclude.length - EXCLUDE_TITLES_MAX);
+        excludeTitles.set(sessionId, new Set(trimmed));
+      }
 
       var seenTitles = {};
       var titlesToResolve = [];
