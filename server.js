@@ -1,5 +1,7 @@
 'use strict';
 
+require('dotenv').config();
+
 const path = require('path');
 const express = require('express');
 const recommendHandler = require('./api/recommend');
@@ -35,7 +37,7 @@ app.get('/api/image', function (req, res) {
   });
 });
 
-app.get('/debug-env', (req, res) => {
+app.get('/debug-env', function (req, res) {
   res.json({
     groqExists: !!process.env.GROQ_API_KEY,
     groqLength: process.env.GROQ_API_KEY ? process.env.GROQ_API_KEY.length : 0,
@@ -46,7 +48,7 @@ app.get('/debug-env', (req, res) => {
 
 app.use(express.static(path.join(__dirname)));
 
-app.get('*', function (req, res) {
+app.get('/', function (req, res) {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 

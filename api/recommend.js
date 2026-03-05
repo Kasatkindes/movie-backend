@@ -2,17 +2,19 @@
 
 const GROQ_PROXY_URL = 'https://groq-proxy.sole-speci.workers.dev';
 const MODEL = 'llama-3.1-8b-instant';
-const EXCLUDE_MAX = 10;
 const SESSION_HISTORY_MAX = 100;
 const BATCH_SIZE = 5;
 
-/** In-memory session storage: sessionId -> array of tmdb_id (numbers or strings). */
-const sessionStore = new Map();
+/** Per-session queue of resolved movie objects. Backend returns one movie per request from this queue. */
+const sessionQueues = new Map();
 
-/** Per-session queue of pre-fetched recommendations. Refill via LLM when empty. */
-const sessionQueue = new Map();
+/** Per-session tmdb_ids for duplicate prevention after TMDB resolution. */
+const sessionHistoryIds = new Map();
 
-/** Per-session last filter key. When it changes, history and queue are reset. */
+/** Per-session titles to exclude from LLM. Updated immediately after LLM returns, before TMDB. */
+const excludeTitles = new Map();
+
+/** Per-session last filter key. When it changes, queue and history are reset. */
 const sessionFilterKey = new Map();
 
 function normalizeTitle(s) {
@@ -25,31 +27,33 @@ function normId(id) {
   return isNaN(n) ? String(id) : n;
 }
 
-function getSessionHistory(sessionId) {
+function getSessionHistoryIds(sessionId) {
   if (!sessionId) return [];
-  var arr = sessionStore.get(sessionId);
+  var arr = sessionHistoryIds.get(sessionId);
   return Array.isArray(arr) ? arr : [];
 }
 
-function addToSessionHistory(sessionId, tmdbId) {
-  if (!sessionId || (tmdbId != null && String(tmdbId).trim() === '')) return;
-  var id = normId(tmdbId);
-  if (id === '' || id === 'NaN') return;
-  var arr = getSessionHistory(sessionId);
-  if (!arr.some(function (x) { return normId(x) === id; })) arr.push(tmdbId);
-  if (arr.length > SESSION_HISTORY_MAX) arr.splice(0, arr.length - SESSION_HISTORY_MAX);
-  sessionStore.set(sessionId, arr);
-}
-
-function isInHistory(sessionId, tmdbId) {
+function isInHistoryIds(sessionId, tmdbId) {
   if (!sessionId || tmdbId == null) return false;
   var id = normId(tmdbId);
   if (id === '' || id === 'NaN') return false;
-  return getSessionHistory(sessionId).some(function (x) { return normId(x) === id; });
+  return getSessionHistoryIds(sessionId).some(function (x) { return normId(x) === id; });
 }
 
-function containsCyrillic(str) {
-  return /[а-яё]/i.test(str);
+function addToSessionHistoryIds(sessionId, tmdbId) {
+  if (!sessionId || (tmdbId != null && String(tmdbId).trim() === '')) return;
+  var id = normId(tmdbId);
+  if (id === '' || id === 'NaN') return;
+  var arr = getSessionHistoryIds(sessionId);
+  if (!arr.some(function (x) { return normId(x) === id; })) arr.push(tmdbId);
+  if (arr.length > SESSION_HISTORY_MAX) arr.splice(0, arr.length - SESSION_HISTORY_MAX);
+  sessionHistoryIds.set(sessionId, arr);
+}
+
+function ensureSessionMaps(sessionId) {
+  if (!sessionQueues.has(sessionId)) sessionQueues.set(sessionId, []);
+  if (!sessionHistoryIds.has(sessionId)) sessionHistoryIds.set(sessionId, []);
+  if (!excludeTitles.has(sessionId)) excludeTitles.set(sessionId, new Set());
 }
 
 const SYSTEM_PROMPT = `
@@ -418,16 +422,14 @@ module.exports = async (req, res) => {
     }
     const tmdbApiKey = process.env.TMDB_API_KEY || '';
 
-    let mood = null, epoch = null, rating = null, popularity = null, likedMovies = [], sessionId = null, globalHistory = [];
+    let mood = null, epoch = null, rating = null, popularity = null, sessionId = null;
     const rawBody = req.body ?? {};
     try {
       const body = typeof rawBody === 'string' ? JSON.parse(rawBody) : (typeof rawBody === 'object' && rawBody !== null ? rawBody : {});
       if (body && typeof body === 'object') {
-        const { mood: m, epoch: e, rating: r, popularity: p, likedMovies: lm, sessionId: sid, globalHistory: gh } = body;
+        const { mood: m, epoch: e, rating: r, popularity: p, sessionId: sid } = body;
         mood = m; epoch = e; rating = r; popularity = p;
-        likedMovies = Array.isArray(lm) ? lm : [];
         sessionId = sid != null && String(sid).trim() ? String(sid).trim() : null;
-        globalHistory = Array.isArray(gh) ? gh : [];
       }
     } catch (_) {}
     if (!mood || String(mood).trim() === '') mood = 'explore';
@@ -441,36 +443,38 @@ module.exports = async (req, res) => {
     var currentFilterKey = buildFilterKey(mood, epoch, rating, popularity);
     var lastFilterKey = sessionFilterKey.get(sessionId);
     if (lastFilterKey !== undefined && lastFilterKey !== currentFilterKey) {
-      sessionStore.set(sessionId, []);
-      sessionQueue.set(sessionId, []);
+      sessionQueues.set(sessionId, []);
+      sessionHistoryIds.set(sessionId, []);
+      excludeTitles.set(sessionId, new Set());
     }
     sessionFilterKey.set(sessionId, currentFilterKey);
+    ensureSessionMaps(sessionId);
 
-    var excludeList = (globalHistory || []).slice(-EXCLUDE_MAX);
-    var likedBlock = '';
-    if (likedMovies.length > 0) {
-      likedBlock = '\n\nUser liked these movies:\n• ' + likedMovies.slice(0, 30).join('\n• ') + '\n\nWhen generating recommendations, take these preferences slightly into account. Do not repeat the same movies.';
+    var queue = sessionQueues.get(sessionId);
+    if (queue.length > 0) {
+      var first = queue.shift();
+      res.status(200).json({ recommendations: [first], sessionId: sessionId });
+      return;
     }
 
-    /** Exclude when refilling batch. excludeList = session history + globalHistory, capped. */
-    function buildUserMessage(excludeList) {
+    var excludeSet = excludeTitles.get(sessionId);
+    function buildUserMessage() {
       var excludePart = '';
-      if (Array.isArray(excludeList) && excludeList.length > 0) {
-        var lastN = excludeList.slice(-EXCLUDE_MAX);
-        excludePart = '\n\nНе включай в массив movies фильмы из списка (уже показаны в этой сессии): ' + lastN.join(', ') + '. Только названия, без годов и описаний.';
+      if (excludeSet && excludeSet.size > 0) {
+        var lines = Array.from(excludeSet).slice(-50).map(function (t) { return '- ' + t; });
+        excludePart = '\n\nDo NOT recommend any of these movies:\n\n' + lines.join('\n');
       }
-      return `Подбери 5 разных фильмов. Настроение: ${mood || 'любое'}. Эпоха: ${epoch || 'любая'}. Рейтинг: ${rating || 'любой'}. Популярность: ${popularity || 'любая'}.${excludePart}${likedBlock} Ответь только JSON в указанном формате (массив movies из 5 элементов).`;
+      return `Подбери 5 разных фильмов. Настроение: ${mood || 'любое'}. Эпоха: ${epoch || 'любая'}. Рейтинг: ${rating || 'любой'}. Популярность: ${popularity || 'любая'}.${excludePart}\n\nОтветь только JSON в указанном формате (массив movies из 5 элементов).`;
     }
 
     var recommendations = [];
-
     for (var attempt = 0; attempt < 2; attempt++) {
       console.log('DEBUG: Calling Groq with payload:', { mood, epoch, rating, popularity });
       var raw = null;
       try {
         var messages = [
           { role: 'system', content: SYSTEM_PROMPT },
-          { role: 'user', content: buildUserMessage(excludeList) }
+          { role: 'user', content: buildUserMessage() }
         ];
         var response = await fetch(GROQ_PROXY_URL, {
           method: 'POST',
@@ -522,13 +526,15 @@ module.exports = async (req, res) => {
 
       var list = (raw && raw.movies && Array.isArray(raw.movies)) ? raw.movies : [];
       console.log('DEBUG: Parsed movie list:', list);
-      console.group('🎬 LLM RAW OUTPUT');
-      console.log('Raw LLM JSON:', raw);
-      console.log('Raw movies array:', list);
-      console.log('Count from LLM:', list.length);
-      console.groupEnd();
 
-      var globalNorm = (globalHistory || []).map(function (t) { return normalizeTitle(t); });
+      var titlesFromLlm = [];
+      for (var i = 0; i < list.length; i++) {
+        var item = list[i];
+        var title = (item && (item.title != null || item.original_title != null)) ? String(item.title || item.original_title).trim() : '';
+        if (title) titlesFromLlm.push(title);
+      }
+      titlesFromLlm.forEach(function (t) { excludeSet.add(normalizeTitle(t)); });
+
       var seenTitles = {};
       var titlesToResolve = [];
       for (var i = 0; i < list.length && titlesToResolve.length < BATCH_SIZE; i++) {
@@ -538,14 +544,11 @@ module.exports = async (req, res) => {
         var key = normalizeTitle(title);
         if (seenTitles[key]) continue;
         seenTitles[key] = true;
-        if (globalNorm.indexOf(key) !== -1) continue;
         titlesToResolve.push(title);
       }
 
       console.group('🧹 AFTER TITLE FILTERING');
       console.log('Titles to resolve:', titlesToResolve);
-      console.log('Session history:', getSessionHistory(sessionId));
-      console.log('Global history:', globalHistory);
       console.groupEnd();
 
       var seenIds = {};
@@ -564,7 +567,7 @@ module.exports = async (req, res) => {
           console.log('❌ SKIPPED (TMDB failed or filtered):', titlesToResolve[t]);
         }
         if (!resolved) continue;
-        if (isInHistory(sessionId, resolved.tmdb_id)) continue;
+        if (isInHistoryIds(sessionId, resolved.tmdb_id)) continue;
         if (seenIds[normId(resolved.tmdb_id)]) continue;
         seenIds[normId(resolved.tmdb_id)] = true;
         recommendations.push(resolved);
@@ -575,14 +578,23 @@ module.exports = async (req, res) => {
     }
 
     for (var r = 0; r < recommendations.length; r++) {
-      addToSessionHistory(sessionId, recommendations[r].tmdb_id);
+      addToSessionHistoryIds(sessionId, recommendations[r].tmdb_id);
+      queue = sessionQueues.get(sessionId);
+      queue.push(recommendations[r]);
     }
+
+    if (queue.length === 0) {
+      console.group('🚀 FINAL RESPONSE (empty)');
+      console.groupEnd();
+      res.status(200).json({ recommendations: [], sessionId: sessionId });
+      return;
+    }
+
+    var one = queue.shift();
     console.group('🚀 FINAL RESPONSE');
-    console.log('DEBUG: FINAL recommendations:', recommendations);
-    console.log('Resolved recommendations:', recommendations);
-    console.log('Count returned to frontend:', recommendations.length);
+    console.log('Count returned to frontend: 1');
     console.groupEnd();
-    res.status(200).json({ recommendations: recommendations, sessionId: sessionId });
+    res.status(200).json({ recommendations: [one], sessionId: sessionId });
   } catch (err) {
     console.error('GROQ ERROR:', err);
     res.status(500).json({ error: err.message || 'Recommendation failed', details: 'Check Groq API Key or Quota' });
