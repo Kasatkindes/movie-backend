@@ -344,24 +344,18 @@ Check logs:
 pm2 logs movie-api
 
 Check environment:
-
 /debug-env
-
-------------------------------------------------------------
+–––––––––––––––––––––––––
 
 ## 23. SECURITY
 
 Secrets stored in:
-
 .env
 
 Variables:
-
 GROQ_API_KEY
 TMDB_API_KEY
 
 .env never committed to Git.
-
-------------------------------------------------------------
-
+–––––––––––––––––––––––––
 END OF DOCUMENT
