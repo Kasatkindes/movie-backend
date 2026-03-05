@@ -1,29 +1,26 @@
 # Подбор фильма по настроению
 
-Фронтенд (HTML, CSS, JS, ассеты) в корне проекта. API для рекомендаций — Vercel Serverless (Groq).
+Фронтенд (HTML, CSS, JS, ассеты) в корне проекта. API для рекомендаций — Express-сервер в корне.
 
 ## Структура
 
-- **Корень** — `index.html`, `style.css`, `app.js`, папка `assets/` (иконки, персонажи).
-- **`/api`** — серверные функции Vercel; `api/recommend.js` — рекомендация фильма через Groq (модель llama3-8b-8192).
-- **`/backend`** — зарезервировано под дополнительный бэкенд при необходимости.
+- **Корень** — `server.js` (единственная точка входа), `index.html`, `style.css`, `app.js`, папка `assets/` (иконки, персонажи).
+- **`api/`** — `api/recommend.js` (рекомендации через Groq), `api/image.js` (прокси изображений TMDB).
 
 ## Локальный запуск
 
 ```bash
-# Статика из корня
-npx serve . -p 8080
-# или
-python3 -m http.server 8080
+npm install
+node server.js
 ```
 
-Откройте http://localhost:8080. Для работы кнопки «Подобрать фильм» нужен деплой на Vercel (или прокси к API с `GROQ_API_KEY`).
+Откройте http://localhost:3000. Задайте переменные окружения `GROQ_API_KEY` и `TMDB_API_KEY` (или в `.env`).
 
-## Деплой на Vercel
+## Деплой
 
-1. Подключите репозиторий к Vercel.
-2. В настройках проекта добавьте переменную окружения **`GROQ_API_KEY`** (ключ из [console.groq.com](https://console.groq.com)).
-3. Деплой: статика раздаётся из корня, запросы к `/api/recommend` обрабатывает `api/recommend.js`.
+**Node-сервер (VPS, PM2 и т.д.):** скопируйте проект на сервер, выполните `npm install`, задайте `GROQ_API_KEY` и `TMDB_API_KEY`, запустите `node server.js` (или через PM2).
+
+**Vercel:** при использовании Vercel настройте переменные **`GROQ_API_KEY`** и **`TMDB_API_KEY`**; статика и `/api/recommend` раздаются из корня.
 
 ## Публикация в GitHub
 
